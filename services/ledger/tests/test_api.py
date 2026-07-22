@@ -1,12 +1,12 @@
 from fastapi.testclient import TestClient
 
-from app.main import _chains, app
+from app.main import app, store
 
 client = TestClient(app)
 
 
 def setup_function(_):
-    _chains.clear()
+    store.clear()  # unit tier always runs on MemoryStore
 
 
 def test_healthz():

@@ -1,32 +1,24 @@
 """ledger-svc — append-only hash-chained audit ledger.
 
-Sprint S0 walking skeleton: in-memory chains (one per tenant), the real
-API surface, and the verify/replay endpoints wired to truvo_core.
+Storage: PostgresStore when TRUVO_LEDGER_DB_URL is set (production path:
+RLS-fenced `ledger_entries`, per-tenant advisory-lock append), MemoryStore
+otherwise (unit tests, dependency-free dev).
 
-S3-S4 (per DEVELOPMENT_PLAN.md): Postgres persistence, mTLS service
-identity, external hash anchoring, OTel instrumentation.
+Still S7 work: mTLS/SPIFFE caller identity — until then the caller's
+tenant claim is trusted (recorded in THREAT_MODEL.md).
 """
 
 from datetime import datetime, timezone
-from threading import Lock
 from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from truvo_core.hashchain import (
-    ChainError,
-    LedgerEntry,
-    append_entry,
-    replay_hashes,
-    verify_chain,
-)
+from app.store import store_from_env
+from truvo_core.hashchain import ChainError, LedgerEntry, replay_hashes, verify_chain
 
-app = FastAPI(title="truvo-ledger", version="0.1.0")
-
-# --- in-memory store (S0 only; replaced by Postgres in S3) -------------------
-_chains: Dict[str, List[LedgerEntry]] = {}
-_lock = Lock()
+app = FastAPI(title="truvo-ledger", version="0.2.0")
+store = store_from_env()
 
 
 class AppendRequest(BaseModel):
@@ -49,38 +41,29 @@ class EntryOut(BaseModel):
 
 @app.get("/healthz")
 def healthz() -> Dict[str, str]:
-    return {"status": "ok", "service": "ledger"}
+    return {"status": "ok", "service": "ledger", "store": type(store).__name__}
 
 
 @app.post("/v1/entries", response_model=EntryOut, status_code=201)
 def append(req: AppendRequest) -> LedgerEntry:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-    with _lock:
-        chain = _chains.setdefault(req.tenant, [])
-        prev = chain[-1] if chain else None
-        try:
-            entry = append_entry(
-                prev,
-                ts_iso=ts,
-                tenant=req.tenant,
-                actor=req.actor,
-                kind=req.kind,
-                payload=req.payload,
-            )
-        except (TypeError, ValueError) as exc:  # canonicalization failures
-            raise HTTPException(status_code=422, detail=str(exc))
-        chain.append(entry)
-    return entry
+    try:
+        return store.append(
+            ts_iso=ts, tenant=req.tenant, actor=req.actor, kind=req.kind,
+            payload=req.payload,
+        )
+    except (TypeError, ValueError) as exc:  # canonicalization failures
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @app.get("/v1/{tenant}/entries", response_model=List[EntryOut])
 def list_entries(tenant: str) -> List[LedgerEntry]:
-    return _chains.get(tenant, [])
+    return store.list(tenant)
 
 
 @app.get("/v1/{tenant}/verify")
 def verify(tenant: str) -> Dict[str, Any]:
-    chain = _chains.get(tenant, [])
+    chain = store.list(tenant)
     try:
         count = verify_chain(chain)
     except ChainError as exc:
