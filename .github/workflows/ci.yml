@@ -37,9 +37,36 @@ jobs:
       - name: ledger-svc tests
         run: pytest services/ledger -v
 
+  leak-tests:
+    # Cross-tenant RLS leak tests against real Postgres (platform DoD §1.3).
+    # A failure here means tenant data can leak: sev-1, never overridable.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg17
+        env:
+          POSTGRES_DB: truvo
+          POSTGRES_USER: truvo
+          POSTGRES_PASSWORD: truvo-dev-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U truvo -d truvo"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      TRUVO_TEST_DATABASE_URL: postgresql://truvo:truvo-dev-only@localhost:5432/truvo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.13"}
+      - run: pip install pytest psycopg2-binary
+      - name: Apply migrations
+        run: python db/migrate.py "$TRUVO_TEST_DATABASE_URL"
+      - name: Run cross-tenant leak tests
+        run: pytest db/tests -v
+
   build-images:
     runs-on: ubuntu-latest
-    needs: [lint, test-python]
+    needs: [lint, test-python, leak-tests]
     steps:
       - uses: actions/checkout@v4
       - name: Build ledger image
