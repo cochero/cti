@@ -19,6 +19,10 @@ consume tenant-scoped tables; they cannot widen them.
    `tenant_id = truvo_current_tenant()` — reads and writes both fenced.
 4. Grants to `truvo_app` only for the verbs the table's semantics allow
    (e.g. `ledger_entries` is append-only: SELECT + INSERT, no UPDATE/DELETE).
+   **Since 0004**, admin-created tables default-grant full DML to
+   `truvo_app` (for Django-owned tables) — so restricted tables must
+   explicitly `REVOKE UPDATE, DELETE ON <table> FROM truvo_app` in their
+   migration. The leak-test suite asserts this for `ledger_entries`.
 5. Services set tenant context per-connection/transaction:
    `SELECT set_config('truvo.tenant_id', '<uuid>', true)`.
 

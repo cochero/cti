@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "3.13"}
       - run: pip install ruff
-      - run: ruff check libs/ services/
+      - run: ruff check libs/ services/ db/ core/
 
   test-python:
     runs-on: ubuntu-latest
@@ -63,10 +63,46 @@ jobs:
         run: python db/migrate.py "$TRUVO_TEST_DATABASE_URL"
       - name: Run cross-tenant leak tests
         run: pytest db/tests -v
+      - name: Install core service
+        run: pip install -e "core[dev]"
+      - name: Core unit tests (Django over test DB)
+        working-directory: core
+        env:
+          TRUVO_DB_URL: postgresql://truvo:truvo-dev-only@localhost:5432/truvo
+        run: python -m pytest tests -v
+      - name: Core live tests (RLS through Django as truvo_app)
+        working-directory: core
+        run: python -m pytest tests_live -p no:django -v
+
+  event-roundtrip:
+    # S1-S2 exit: registry-validated event round-trips through the backbone.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.13"}
+      - name: Start Redpanda
+        run: |
+          docker run -d --name redpanda -p 9092:9092 -p 18081:18081 \
+            redpandadata/redpanda:latest redpanda start --smp=1 --memory=1G \
+            --mode=dev-container \
+            --kafka-addr=external://0.0.0.0:9092 \
+            --advertise-kafka-addr=external://localhost:9092 \
+            --schema-registry-addr=external://0.0.0.0:18081
+          for i in $(seq 1 30); do
+            docker exec redpanda rpk cluster health --exit-when-healthy && break
+            sleep 2
+          done
+      - run: pip install -e "libs/py/truvo_events[dev]"
+      - name: Round-trip test
+        env:
+          TRUVO_KAFKA_BOOTSTRAP: localhost:9092
+          TRUVO_SCHEMA_REGISTRY: http://localhost:18081
+        run: pytest libs/py/truvo_events -v
 
   build-images:
     runs-on: ubuntu-latest
-    needs: [lint, test-python, leak-tests]
+    needs: [lint, test-python, leak-tests, event-roundtrip]
     steps:
       - uses: actions/checkout@v4
       - name: Build ledger image
