@@ -1,0 +1,17 @@
+# Normalize line endings: LF in the repo and working tree for everything
+# we author. A Windows checkout must produce byte-identical files to the
+# Linux CI checkout — canonical-JSON hashing and signed artifacts depend
+# on it.
+* text=auto eol=lf
+
+# Windows-native scripts keep CRLF
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary — never touch
+*.png binary
+*.jpg binary
+*.pdf binary
+*.woff2 binary
+*.onnx binary
