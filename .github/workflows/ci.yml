@@ -70,6 +70,11 @@ jobs:
         env:
           TRUVO_DB_URL: postgresql://truvo:truvo-dev-only@localhost:5432/truvo
         run: python -m pytest tests -v
+      - name: Apply Django migrations to the live DB (as admin role)
+        working-directory: core
+        env:
+          TRUVO_DB_URL: postgresql://truvo:truvo-dev-only@localhost:5432/truvo
+        run: python manage.py migrate --noinput
       - name: Core live tests (RLS through Django as truvo_app)
         working-directory: core
         run: python -m pytest tests_live -p no:django -v
