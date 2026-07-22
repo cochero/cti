@@ -115,9 +115,14 @@ def test_full_rewrite_defeated_by_anchor(tenant):
     assert "ANCHOR MISMATCH" in r.json()["detail"]
 
 
+@pytest.mark.skipif(
+    not os.environ.get("TRUVO_MINIO_ENDPOINT"),
+    reason="TRUVO_MINIO_ENDPOINT not set (MinIO not in this environment)",
+)
 def test_anchor_delivered_to_minio(tenant, monkeypatch):
     tid, _ = tenant
-    monkeypatch.setenv("TRUVO_ANCHOR_S3_ENDPOINT", "localhost:9000")
+    endpoint = os.environ["TRUVO_MINIO_ENDPOINT"]
+    monkeypatch.setenv("TRUVO_ANCHOR_S3_ENDPOINT", endpoint)
     monkeypatch.setenv("TRUVO_ANCHOR_S3_ACCESS_KEY", "truvo")
     monkeypatch.setenv("TRUVO_ANCHOR_S3_SECRET_KEY", "truvo-dev-only")
     _append(tid, n=0)
@@ -125,7 +130,7 @@ def test_anchor_delivered_to_minio(tenant, monkeypatch):
 
     from minio import Minio
 
-    m = Minio("localhost:9000", access_key="truvo",
+    m = Minio(endpoint, access_key="truvo",
               secret_key="truvo-dev-only", secure=False)
     name = "%s/%s.json" % (tid, a["as_of_iso"].replace(":", "-"))
     obj = m.get_object("truvo-anchors", name)

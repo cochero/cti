@@ -81,7 +81,10 @@ def test_registry_validated_roundtrip():
         msg = consumer.poll(0.5)
         if msg is None or msg.error():
             continue
-        decoded_id, record = decode(msg.value(), registry.get_schema)
+        try:
+            decoded_id, record = decode(msg.value(), registry.get_schema)
+        except Exception:
+            continue  # shared dev topic may hold poison from DLQ tests
         if record["claim_id"] == claim["claim_id"]:
             got = (decoded_id, record)
             break

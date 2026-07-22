@@ -77,8 +77,12 @@ jobs:
         run: |
           pip install -e "libs/py/truvo_core[dev]" -e "libs/py/truvo_events[dev]"
           pip install -e "services/ledger[dev]" -e "services/provenance[dev]"
-      - name: Ledger live tests (Postgres store, tamper detection)
+          pip install -e "services/identity-telemetry[dev]"
+      - name: Ledger live tests (Postgres store, tamper + anchor detection)
         working-directory: services/ledger
+        run: python -m pytest tests_live -v
+      - name: Identity-telemetry live tests (sync, snapshot, blast radius, RLS)
+        working-directory: services/identity-telemetry
         run: python -m pytest tests_live -v
       - name: Provenance tests (SS7.3 floor unit + live; consumer test skips without Kafka)
         working-directory: services/provenance
