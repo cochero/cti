@@ -1,0 +1,22 @@
+{
+  "type": "record",
+  "name": "Claim",
+  "namespace": "truvo.intel.v1",
+  "doc": "A single extracted assertion from one source (Architecture v2 SS7.2). Claims are candidates: they become believed facts only after provenance weighing and corroboration. Emitted by extraction-svc; consumed by provenance-svc.",
+  "fields": [
+    {"name": "claim_id", "type": "string", "doc": "UUIDv7"},
+    {"name": "tenant", "type": "string", "doc": "'global' for shared open-source intel"},
+    {"name": "schema_version", "type": "string", "default": "1"},
+    {"name": "source_id", "type": "string", "doc": "FK into provenance-svc source registry"},
+    {"name": "provenance_id", "type": "string", "doc": "lineage record for this observation"},
+    {"name": "observed_at_iso", "type": "string", "doc": "ISO-8601 UTC"},
+    {"name": "raw_artifact_hash", "type": "string", "doc": "content hash of the raw artifact in the object store (evidence preservation)"},
+    {"name": "extraction_model_version", "type": "string"},
+    {"name": "extraction_confidence_millis", "type": "int", "doc": "0-1000; scaled int, never float (canonical JSON rule)"},
+    {"name": "subject_type", "type": {"type": "enum", "name": "SubjectType", "symbols": ["THREAT_ACTOR", "MALWARE", "CVE", "INFRASTRUCTURE", "CAMPAIGN", "TTP"]}},
+    {"name": "subject_value", "type": "string", "doc": "as-extracted, pre-entity-resolution"},
+    {"name": "assertion", "type": "string", "doc": "STIX 2.1 relationship type or 'observed'"},
+    {"name": "object_value", "type": ["null", "string"], "default": null},
+    {"name": "attack_technique_ids", "type": {"type": "array", "items": "string"}, "default": [], "doc": "mapped ATT&CK technique IDs, e.g. T1566.001"}
+  ]
+}

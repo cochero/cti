@@ -1,0 +1,85 @@
+openapi: 3.1.0
+info:
+  title: truvo-ledger
+  version: 0.1.0
+  description: >
+    Append-only hash-chained audit ledger (Architecture v2 SS4.2). Internal
+    service API; callers authenticate via mTLS/SPIFFE (from S7). Entries are
+    immutable; there are no update or delete operations by design.
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      responses:
+        "200": {description: OK}
+  /v1/entries:
+    post:
+      summary: Append an entry to the caller tenant's chain
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AppendRequest"}
+      responses:
+        "201":
+          description: Entry appended
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Entry"}
+        "422": {description: Payload failed canonicalization (e.g. floats)}
+  /v1/{tenant}/entries:
+    get:
+      summary: List a tenant's chain
+      parameters:
+        - {name: tenant, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: Chain entries in sequence order
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/Entry"}
+  /v1/{tenant}/verify:
+    get:
+      summary: Verify chain integrity and the replay property
+      parameters:
+        - {name: tenant, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: Chain valid
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/VerifyResult"}
+        "500": {description: CHAIN INVALID — treat as sev-1}
+components:
+  schemas:
+    AppendRequest:
+      type: object
+      required: [tenant, actor, kind]
+      properties:
+        tenant: {type: string, minLength: 1}
+        actor: {type: string, minLength: 1, description: producing service/user}
+        kind: {type: string, minLength: 1, example: score.emitted}
+        payload:
+          type: object
+          description: JSON-safe content; floats rejected (canonical JSON rule)
+    Entry:
+      type: object
+      required: [seq, ts_iso, tenant, actor, kind, payload, prev_hash, entry_hash]
+      properties:
+        seq: {type: integer}
+        ts_iso: {type: string}
+        tenant: {type: string}
+        actor: {type: string}
+        kind: {type: string}
+        payload: {type: object}
+        prev_hash: {type: string, description: sha256 hex; 64 zeros for genesis}
+        entry_hash: {type: string, description: sha256 hex over canonical content}
+    VerifyResult:
+      type: object
+      properties:
+        tenant: {type: string}
+        entries: {type: integer}
+        chain_valid: {type: boolean}
+        replay_ok: {type: boolean}

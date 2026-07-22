@@ -1,0 +1,81 @@
+# TRUVO dev stack — Sprint S0
+# Postgres+TimescaleDB, Redpanda (Kafka API), MinIO (S3 API).
+# Usage: docker compose -f deploy/compose/docker-compose.yml up -d
+name: truvo-dev
+
+services:
+  postgres:
+    image: timescale/timescaledb:latest-pg17
+    container_name: truvo-postgres
+    environment:
+      POSTGRES_DB: truvo
+      POSTGRES_USER: truvo
+      POSTGRES_PASSWORD: truvo-dev-only # dev stack only; staging/prod use vault
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U truvo -d truvo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redpanda:
+    image: redpandadata/redpanda:latest
+    container_name: truvo-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=1G
+      - --mode=dev-container
+      - --kafka-addr=internal://0.0.0.0:9093,external://0.0.0.0:9092
+      - --advertise-kafka-addr=internal://redpanda:9093,external://localhost:9092
+      - --schema-registry-addr=internal://0.0.0.0:8081,external://0.0.0.0:18081
+    ports:
+      - "9092:9092"   # Kafka API (host)
+      - "18081:18081" # Schema registry (host)
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health --exit-when-healthy || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redpanda-console:
+    image: redpandadata/console:latest
+    container_name: truvo-redpanda-console
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: redpanda:9093
+      KAFKA_SCHEMAREGISTRY_ENABLED: "true"
+      KAFKA_SCHEMAREGISTRY_URLS: http://redpanda:8081
+    ports:
+      - "8080:8080"
+
+  minio:
+    image: minio/minio:latest
+    container_name: truvo-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: truvo
+      MINIO_ROOT_PASSWORD: truvo-dev-only # dev stack only
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pg_data:
+  redpanda_data:
+  minio_data:

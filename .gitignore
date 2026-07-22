@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage*
+
+# Node / web
+node_modules/
+web/dist/
+web/.vite/
+
+# Flutter
+mobile/.dart_tool/
+mobile/build/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Secrets & local env — never commit
+.env
+*.local
+*.pem
+*.key
+!**/testdata/**/*.key
+
+# Docker volumes / local data
+deploy/compose/.data/

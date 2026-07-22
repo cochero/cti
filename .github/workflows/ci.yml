@@ -1,0 +1,48 @@
+# TRUVO CI — Sprint S0 skeleton.
+# Grows with the platform DoD (DEVELOPMENT_PLAN §1): image signing + SBOM
+# gates activate when the registry lands (S0 exit); cross-tenant leak tests
+# join in S1-S2; staging deploy on merge joins in S5-S6.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.13"}
+      - run: pip install ruff
+      - run: ruff check libs/ services/
+
+  test-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.13"}
+      - name: Install packages under test
+        run: |
+          pip install -e "libs/py/truvo_core[dev]"
+          pip install -e "services/ledger[dev]"
+      - name: truvo_core tests (includes the replay-property test — a failure here is a sev-1)
+        run: pytest libs/py/truvo_core -v
+      - name: ledger-svc tests
+        run: pytest services/ledger -v
+
+  build-images:
+    runs-on: ubuntu-latest
+    needs: [lint, test-python]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ledger image
+        run: docker build -f services/ledger/Dockerfile -t truvo/ledger:${{ github.sha }} .
+      # TODO(S0-exit): push to registry + cosign sign + CycloneDX SBOM attest.
+      # The DoD gate: no unsigned image is deployable (DEVELOPMENT_PLAN §1.3).
