@@ -13,10 +13,11 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from app.anchor import AnchorMismatch, AnchorRecord, check_chain_extends, make_anchor
+from app.svcgate import require_service_identity
 from app.store import store_from_env
 from truvo_core.hashchain import ChainError, LedgerEntry, replay_hashes, verify_chain
 
@@ -55,7 +56,9 @@ def healthz() -> Dict[str, str]:
 
 
 @app.post("/v1/entries", response_model=EntryOut, status_code=201)
-def append(req: AppendRequest) -> LedgerEntry:
+def append(
+    req: AppendRequest, caller: str = Depends(require_service_identity)
+) -> LedgerEntry:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     try:
         return store.append(
@@ -147,7 +150,9 @@ def _deliver_s3(record: AnchorRecord) -> Optional[str]:
 
 
 @app.post("/v1/{tenant}/anchor", response_model=AnchorOut, status_code=201)
-def create_anchor(tenant: str) -> AnchorRecord:
+def create_anchor(
+    tenant: str, caller: str = Depends(require_service_identity)
+) -> AnchorRecord:
     """Snapshot and sign the current chain head; persist and deliver."""
     chain = store.list(tenant)
     if not chain:

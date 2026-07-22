@@ -29,9 +29,17 @@ def consume_batch(
     max_messages: int = 100,
     timeout_s: float = 10.0,
     group: Optional[str] = None,
+    max_wall_s: float = 120.0,
 ) -> int:
     """Poll up to max_messages (or until timeout_s of quiet); returns count
-    ingested. Offsets commit only after successful ingest of the batch."""
+    ingested. Offsets commit only after successful ingest of the batch.
+
+    The quiet clock starts only after partition assignment — otherwise a
+    slow group rebalance can look like an empty topic and the batch exits
+    without consuming anything. max_wall_s hard-caps the call regardless.
+    """
+    import time as _time
+
     registry = SchemaRegistry(os.environ["TRUVO_SCHEMA_REGISTRY"])
     consumer = Consumer(
         {
@@ -41,17 +49,26 @@ def consume_batch(
             "enable.auto.commit": False,
         }
     )
-    consumer.subscribe([TOPIC])
+    assigned = [False]
+
+    def _on_assign(_c, _parts):
+        assigned[0] = True
+
+    consumer.subscribe([TOPIC], on_assign=_on_assign)
     ingested = 0
     skipped = 0
     last_error: Optional[Exception] = None
     dlq: Optional[Producer] = None
+    started = _time.monotonic()
     try:
         quiet = 0.0
         while ingested < max_messages and quiet < timeout_s:
+            if _time.monotonic() - started > max_wall_s:
+                break
             msg = consumer.poll(0.5)
             if msg is None:
-                quiet += 0.5
+                if assigned[0]:
+                    quiet += 0.5
                 continue
             if msg.error():
                 continue

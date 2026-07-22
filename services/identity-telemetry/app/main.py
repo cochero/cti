@@ -34,19 +34,28 @@ def pool() -> psycopg2.pool.ThreadedConnectionPool:
 
 class SyncRequest(BaseModel):
     provider: str = Field(pattern="^(entra|okta|fake)$")
-    # entra
+    # entra — credentials arrive as a secret REFERENCE (S7), never a value:
+    #   client_secret_ref: "vault:secret/truvo/tenants/<t>/entra#client_secret"
     idp_tenant_id: Optional[str] = None
     client_id: Optional[str] = None
-    client_secret: Optional[str] = None  # S7: vault reference, not the secret
+    client_secret_ref: Optional[str] = None
     # fake (tests)
     fake_identities: Optional[List[Dict[str, Any]]] = None
 
 
 def _provider(req: SyncRequest) -> IdentityProvider:
     if req.provider == "entra":
-        if not (req.idp_tenant_id and req.client_id and req.client_secret):
-            raise HTTPException(422, "entra requires idp_tenant_id/client_id/client_secret")
-        return EntraProvider(req.idp_tenant_id, req.client_id, req.client_secret)
+        if not (req.idp_tenant_id and req.client_id and req.client_secret_ref):
+            raise HTTPException(
+                422, "entra requires idp_tenant_id/client_id/client_secret_ref"
+            )
+        from truvo_secrets import SecretRefError, resolve
+
+        try:
+            secret = resolve(req.client_secret_ref)
+        except (SecretRefError, KeyError) as exc:
+            raise HTTPException(422, "client_secret_ref: %s" % exc)
+        return EntraProvider(req.idp_tenant_id, req.client_id, secret)
     if req.provider == "fake":
         return FakeProvider([Identity(**i) for i in req.fake_identities or []])
     raise HTTPException(422, "okta provider lands in a later sprint")

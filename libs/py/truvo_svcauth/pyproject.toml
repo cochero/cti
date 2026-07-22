@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "truvo-svcauth"
+version = "0.1.0"
+description = "TRUVO service-to-service auth: Ed25519 request signing"
+requires-python = ">=3.9"
+dependencies = ["cryptography>=42", "truvo-core"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+include = ["truvo_svcauth*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

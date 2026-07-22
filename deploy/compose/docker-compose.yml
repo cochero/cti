@@ -60,6 +60,18 @@ services:
     ports:
       - "8080:8080"
 
+  openbao:
+    image: quay.io/openbao/openbao:latest
+    container_name: truvo-openbao
+    restart: unless-stopped
+    command: server -dev -dev-root-token-id=truvo-dev-root -dev-listen-address=0.0.0.0:8200
+    environment:
+      BAO_ADDR: http://0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "8200:8200"
+
   minio:
     image: minio/minio:latest
     container_name: truvo-minio

@@ -13,6 +13,8 @@ dependencies = [
     "truvo-core",
     "psycopg2-binary>=2.9",
     "minio>=7.2",
+    "truvo-secrets",
+    "truvo-svcauth",
 ]
 
 [project.optional-dependencies]

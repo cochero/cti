@@ -5,24 +5,53 @@ platform (customer S3/WORM bucket, ticket, email), it makes even a
 full-chain rewrite detectable: the rewritten chain cannot reproduce the
 anchored head hash at the anchored seq.
 
-Signing v0: HMAC-SHA256 with a service key (TRUVO_ANCHOR_KEY). S7 replaces
-this with per-tenant keys in the customer HSM/vault — the record format
-does not change.
+Signing: HMAC-SHA256 with a PER-TENANT key from the vault (S7). Key
+resolution order:
+1. vault KV `secret/truvo/tenants/<tenant>#anchor_key` when
+   TRUVO_VAULT_ADDR is configured — auto-provisioned on first anchor in
+   dev; production provisions at tenant onboarding (ADR-0005). Customer
+   HSM custody arrives with the Compact profile.
+2. TRUVO_ANCHOR_KEY env fallback (unit tests, vault-less dev only).
 """
 
 import hashlib
 import hmac
 import os
+import secrets as _pysecrets
 from dataclasses import asdict, dataclass
-from typing import Optional
+from threading import Lock
+from typing import Dict, Optional
 
 from truvo_core.canonical import canonical_json
 
 __all__ = ["AnchorRecord", "make_anchor", "verify_anchor_signature", "AnchorMismatch"]
 
+_key_cache: Dict[str, bytes] = {}
+_key_lock = Lock()
 
-def _key() -> bytes:
-    return os.environ.get("TRUVO_ANCHOR_KEY", "dev-anchor-key-not-for-prod").encode()
+
+def _tenant_key(tenant: str) -> bytes:
+    with _key_lock:
+        if tenant in _key_cache:
+            return _key_cache[tenant]
+    if os.environ.get("TRUVO_VAULT_ADDR"):
+        from truvo_secrets import SecretsClient
+
+        client = SecretsClient()
+        path = "truvo/tenants/%s" % tenant
+        try:
+            key = client.kv_get("secret", path)["anchor_key"]
+        except KeyError:
+            key = _pysecrets.token_hex(32)
+            client.kv_put("secret", path, {"anchor_key": key})
+        key_bytes = key.encode()
+    else:
+        key_bytes = os.environ.get(
+            "TRUVO_ANCHOR_KEY", "dev-anchor-key-not-for-prod"
+        ).encode()
+    with _key_lock:
+        _key_cache[tenant] = key_bytes
+    return key_bytes
 
 
 class AnchorMismatch(ValueError):
@@ -45,7 +74,7 @@ class AnchorRecord:
 
 def _sign(record: AnchorRecord) -> str:
     return hmac.new(
-        _key(), canonical_json(record.signable()), hashlib.sha256
+        _tenant_key(record.tenant), canonical_json(record.signable()), hashlib.sha256
     ).hexdigest()
 
 

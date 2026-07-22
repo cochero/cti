@@ -25,11 +25,31 @@ if ADMIN_URL:
 
 
 def test_poison_message_lands_in_dlq():
+    import time
+
     from confluent_kafka import Consumer, Producer
 
     from app.consumer import DLQ_TOPIC, TOPIC, consume_batch
 
     marker = ("poison-%s" % uuid.uuid4().hex[:12]).encode()
+
+    # Subscribe the DLQ reader at *latest* BEFORE producing, so the ever-
+    # growing DLQ backlog (every run re-dead-letters the shared topic's
+    # poison under a fresh group) is invisible; we only see new arrivals.
+    dlq = Consumer(
+        {
+            "bootstrap.servers": KAFKA,
+            "group.id": "dlq-read-%s" % uuid.uuid4().hex[:8],
+            "auto.offset.reset": "latest",
+        }
+    )
+    assigned = [False]
+    dlq.subscribe([DLQ_TOPIC], on_assign=lambda c, p: assigned.__setitem__(0, True))
+    deadline = time.monotonic() + 30
+    while not assigned[0] and time.monotonic() < deadline:
+        dlq.poll(0.5)
+    assert assigned[0], "DLQ reader never got partition assignment"
+
     producer = Producer({"bootstrap.servers": KAFKA})
     # not wire format at all — undecodable garbage with a traceable key
     producer.produce(TOPIC, value=b"\xff" + marker, key=marker)
@@ -38,16 +58,9 @@ def test_poison_message_lands_in_dlq():
     consume_batch(max_messages=1000, timeout_s=15.0,
                   group="dlq-test-%s" % uuid.uuid4().hex[:8])
 
-    dlq = Consumer(
-        {
-            "bootstrap.servers": KAFKA,
-            "group.id": "dlq-read-%s" % uuid.uuid4().hex[:8],
-            "auto.offset.reset": "earliest",
-        }
-    )
-    dlq.subscribe([DLQ_TOPIC])
     found = None
-    for _ in range(40):
+    deadline = time.monotonic() + 40
+    while time.monotonic() < deadline:
         msg = dlq.poll(0.5)
         if msg is None or msg.error():
             continue
