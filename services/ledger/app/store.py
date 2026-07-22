@@ -20,7 +20,15 @@ from truvo_core.hashchain import LedgerEntry, append_entry
 class MemoryStore:
     def __init__(self) -> None:
         self._chains: Dict[str, List[LedgerEntry]] = {}
+        self._anchors: Dict[str, list] = {}
         self._lock = Lock()
+
+    def save_anchor(self, record) -> None:
+        with self._lock:
+            self._anchors.setdefault(record.tenant, []).append(record)
+
+    def list_anchors(self, tenant: str) -> list:
+        return list(self._anchors.get(tenant, []))
 
     def append(self, *, ts_iso, tenant, actor, kind, payload) -> LedgerEntry:
         with self._lock:
@@ -117,6 +125,36 @@ class PostgresStore:
                     LedgerEntry(
                         seq=r[0], ts_iso=r[1], tenant=tenant, actor=r[2], kind=r[3],
                         payload=r[4], prev_hash=r[5], entry_hash=r[6],
+                    )
+                    for r in cur.fetchall()
+                ]
+
+    def save_anchor(self, record) -> None:
+        with self._tenant_conn(record.tenant) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO anchors (tenant_id, as_of_iso, last_seq,"
+                    " head_hash, signature) VALUES (%s, %s, %s, %s, %s)",
+                    (
+                        record.tenant, record.as_of_iso, record.last_seq,
+                        record.head_hash, record.signature,
+                    ),
+                )
+
+    def list_anchors(self, tenant: str) -> list:
+        from app.anchor import AnchorRecord
+
+        with self._tenant_conn(tenant) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT as_of_iso, last_seq, head_hash, signature FROM anchors"
+                    " WHERE tenant_id = %s ORDER BY as_of_iso",
+                    (tenant,),
+                )
+                return [
+                    AnchorRecord(
+                        tenant=tenant, as_of_iso=r[0], last_seq=r[1],
+                        head_hash=r[2], signature=r[3],
                     )
                     for r in cur.fetchall()
                 ]

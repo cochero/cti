@@ -11,6 +11,8 @@ dependencies = [
     "fastapi>=0.110",
     "uvicorn>=0.29",
     "truvo-core",
+    "psycopg2-binary>=2.9",
+    "minio>=7.2",
 ]
 
 [project.optional-dependencies]

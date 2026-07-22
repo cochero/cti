@@ -13,12 +13,13 @@ Run once per batch (cron/loop is deployment's choice):
 import os
 from typing import Optional
 
-from confluent_kafka import Consumer
+from confluent_kafka import Consumer, Producer
 
 from app.main import ClaimIn, ingest_claim
 from truvo_events import SchemaRegistry, decode
 
 TOPIC = "intel.claims.v1"
+DLQ_TOPIC = TOPIC + ".dlq"
 GROUP = "provenance-svc"
 
 _EVENT_ONLY_FIELDS = {"tenant", "schema_version"}
@@ -44,6 +45,7 @@ def consume_batch(
     ingested = 0
     skipped = 0
     last_error: Optional[Exception] = None
+    dlq: Optional[Producer] = None
     try:
         quiet = 0.0
         while ingested < max_messages and quiet < timeout_s:
@@ -61,16 +63,31 @@ def consume_batch(
                 }
                 ingest_claim(ClaimIn(**payload))
                 ingested += 1
-            except Exception as exc:  # poison message: skip, never wedge the batch
-                # TODO(S5): dead-letter topic + metric; for now count and move on
+            except Exception as exc:  # poison message: dead-letter, never wedge
                 skipped += 1
                 last_error = exc
+                if dlq is None:
+                    dlq = Producer(
+                        {"bootstrap.servers": os.environ["TRUVO_KAFKA_BOOTSTRAP"]}
+                    )
+                dlq.produce(
+                    DLQ_TOPIC,
+                    value=msg.value(),
+                    key=msg.key(),
+                    headers={
+                        "error": type(exc).__name__.encode(),
+                        "detail": str(exc)[:512].encode(),
+                        "source_topic": TOPIC.encode(),
+                    },
+                )
+        if dlq is not None:
+            dlq.flush(10)  # dead-letters durable BEFORE offsets commit
         if ingested or skipped:
             consumer.commit()
     finally:
         consumer.close()
     if skipped:
-        print("consumer: skipped %d poison message(s); last error: %r"
+        print("consumer: dead-lettered %d poison message(s); last error: %r"
               % (skipped, last_error))
     return ingested
 
