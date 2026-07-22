@@ -7,6 +7,7 @@ services:
   postgres:
     image: timescale/timescaledb:latest-pg17
     container_name: truvo-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: truvo
       POSTGRES_USER: truvo
@@ -24,6 +25,7 @@ services:
   redpanda:
     image: redpandadata/redpanda:latest
     container_name: truvo-redpanda
+    restart: unless-stopped
     command:
       - redpanda
       - start
@@ -47,6 +49,7 @@ services:
   redpanda-console:
     image: redpandadata/console:latest
     container_name: truvo-redpanda-console
+    restart: unless-stopped
     depends_on:
       redpanda:
         condition: service_healthy
@@ -60,6 +63,7 @@ services:
   minio:
     image: minio/minio:latest
     container_name: truvo-minio
+    restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: truvo
