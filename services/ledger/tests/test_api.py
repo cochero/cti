@@ -1,12 +1,14 @@
 from fastapi.testclient import TestClient
 
-from app.main import app, store
+import app.main as ledger
+from app.store import MemoryStore
 
-client = TestClient(app)
+client = TestClient(ledger.app)
 
 
 def setup_function(_):
-    store.clear()  # unit tier always runs on MemoryStore
+    # explicit, order-independent: unit tier always runs on a fresh MemoryStore
+    ledger.use_store(MemoryStore())
 
 
 def test_healthz():

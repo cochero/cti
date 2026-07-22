@@ -23,13 +23,21 @@ pytestmark = pytest.mark.skipif(
 )
 
 if ADMIN_URL:
-    os.environ["TRUVO_LEDGER_DB_URL"] = APP_URL
     import psycopg2
     from fastapi.testclient import TestClient
 
-    from app.main import app
+    import app.main as ledger
+    from app.store import PostgresStore
 
-    client = TestClient(app)
+    _pg_store = PostgresStore(APP_URL)
+    client = TestClient(ledger.app)
+
+
+@pytest.fixture(autouse=True)
+def _postgres_store():
+    # per-test, not import-time: unit tests in the same process swap the
+    # store to MemoryStore in their own setup; each tier claims it explicitly
+    ledger.use_store(_pg_store)
 
 
 @pytest.fixture()

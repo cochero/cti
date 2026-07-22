@@ -73,6 +73,18 @@ jobs:
       - name: Core live tests (RLS through Django as truvo_app)
         working-directory: core
         run: python -m pytest tests_live -p no:django -v
+      - name: Install services
+        run: |
+          pip install -e "libs/py/truvo_core[dev]" -e "libs/py/truvo_events[dev]"
+          pip install -e "services/ledger[dev]" -e "services/provenance[dev]"
+      - name: Ledger live tests (Postgres store, tamper detection)
+        working-directory: services/ledger
+        run: python -m pytest tests_live -v
+      - name: Provenance tests (SS7.3 floor unit + live; consumer test skips without Kafka)
+        working-directory: services/provenance
+        run: |
+          python -m pytest tests -v
+          python -m pytest tests_live -v
 
   event-roundtrip:
     # S1-S2 exit: registry-validated event round-trips through the backbone.

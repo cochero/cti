@@ -21,6 +21,13 @@ app = FastAPI(title="truvo-ledger", version="0.2.0")
 store = store_from_env()
 
 
+def use_store(new_store) -> None:
+    """Swap the storage backend (tests, future DI). Import-time env
+    selection is convenience, not contract."""
+    global store
+    store = new_store
+
+
 class AppendRequest(BaseModel):
     tenant: str = Field(min_length=1)
     actor: str = Field(min_length=1)
