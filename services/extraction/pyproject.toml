@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "truvo-extraction"
+version = "0.1.0"
+description = "TRUVO extraction-svc: schema-gated entity extraction (the stochastic zone)"
+requires-python = ">=3.9"
+dependencies = [
+    "confluent-kafka>=2.5",
+    "truvo-events",
+    "truvo-objstore",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

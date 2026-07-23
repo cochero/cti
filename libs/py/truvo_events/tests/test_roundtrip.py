@@ -53,6 +53,8 @@ def test_registry_validated_roundtrip():
 
     from truvo_events import SchemaRegistry, decode, encode
 
+    import time
+
     schema = json.loads(CONTRACT.read_text(encoding="utf-8"))
     registry = SchemaRegistry(REGISTRY)
 
@@ -60,24 +62,34 @@ def test_registry_validated_roundtrip():
     schema_id = registry.register("%s-value" % TOPIC, schema)
     assert schema_id > 0
 
-    # 2. produce one claim in wire format
-    claim = sample_claim()
-    producer = Producer({"bootstrap.servers": BOOTSTRAP})
-    producer.produce(TOPIC, value=encode(schema, schema_id, claim), key=claim["claim_id"])
-    assert producer.flush(10) == 0, "message not delivered"
-
-    # 3. consume it back and decode via the registry
+    # 2. subscribe at LATEST and wait for assignment BEFORE producing, so
+    # the shared dev topic's accumulated backlog (claims from pipeline/DLQ
+    # tests) is invisible and we only see our own fresh message.
     group = "roundtrip-%s" % uuid.uuid4().hex[:8]
     consumer = Consumer(
         {
             "bootstrap.servers": BOOTSTRAP,
             "group.id": group,
-            "auto.offset.reset": "earliest",
+            "auto.offset.reset": "latest",
         }
     )
-    consumer.subscribe([TOPIC])
+    assigned = [False]
+    consumer.subscribe([TOPIC], on_assign=lambda c, p: assigned.__setitem__(0, True))
+    deadline = time.monotonic() + 30
+    while not assigned[0] and time.monotonic() < deadline:
+        consumer.poll(0.5)
+    assert assigned[0], "consumer never got partition assignment"
+
+    # 3. produce one claim in wire format
+    claim = sample_claim()
+    producer = Producer({"bootstrap.servers": BOOTSTRAP})
+    producer.produce(TOPIC, value=encode(schema, schema_id, claim), key=claim["claim_id"])
+    assert producer.flush(10) == 0, "message not delivered"
+
+    # 4. consume it back and decode via the registry
     got = None
-    for _ in range(40):  # up to ~20s
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
         msg = consumer.poll(0.5)
         if msg is None or msg.error():
             continue

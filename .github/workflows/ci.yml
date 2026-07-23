@@ -39,6 +39,13 @@ jobs:
         run: pytest libs/py/truvo_core -v
       - name: ledger-svc tests
         run: pytest services/ledger -v
+      - name: Install extraction (for the injection suite)
+        run: |
+          pip install -e "libs/py/truvo_events[dev]" -e "libs/py/truvo_objstore[dev]"
+          pip install -e "services/extraction[dev]"
+      - name: Prompt-injection regression suite (§3.1-T2 — a slip here blocks release)
+        working-directory: services/extraction
+        run: python -m pytest tests -v
 
   leak-tests:
     # Cross-tenant RLS leak tests against real Postgres (platform DoD §1.3).
@@ -140,9 +147,62 @@ jobs:
           TRUVO_SCHEMA_REGISTRY: http://localhost:18081
         run: pytest libs/py/truvo_events -v
 
+  pipeline-e2e:
+    # Phase 2 exit: collector -> extraction -> provenance across real
+    # process boundaries, with pipeline-level injection defense.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg17
+        env:
+          POSTGRES_DB: truvo
+          POSTGRES_USER: truvo
+          POSTGRES_PASSWORD: truvo-dev-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U truvo -d truvo"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      TRUVO_TEST_DATABASE_URL: postgresql://truvo:truvo-dev-only@localhost:5432/truvo
+      TRUVO_KAFKA_BOOTSTRAP: localhost:9092
+      TRUVO_SCHEMA_REGISTRY: http://localhost:18081
+      TRUVO_OBJSTORE_ENDPOINT: localhost:9000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.13"}
+      - name: Start Redpanda + MinIO
+        run: |
+          docker run -d --name redpanda -p 9092:9092 -p 18081:18081 \
+            redpandadata/redpanda:latest redpanda start --smp=1 --memory=1G \
+            --mode=dev-container --kafka-addr=external://0.0.0.0:9092 \
+            --advertise-kafka-addr=external://localhost:9092 \
+            --schema-registry-addr=external://0.0.0.0:18081
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=truvo -e MINIO_ROOT_PASSWORD=truvo-dev-only \
+            minio/minio:latest server /data
+          for i in $(seq 1 30); do
+            docker exec redpanda rpk cluster health --exit-when-healthy && break
+            sleep 2
+          done
+      - name: Apply SQL migrations
+        run: |
+          pip install psycopg2-binary
+          python db/migrate.py "$TRUVO_TEST_DATABASE_URL"
+      - name: Install pipeline packages
+        run: |
+          pip install -e "libs/py/truvo_core[dev]" -e "libs/py/truvo_events[dev]" \
+                      -e "libs/py/truvo_objstore[dev]"
+          pip install -e "services/collector[dev]" -e "services/extraction[dev]" \
+                      -e "services/provenance[dev]"
+      - name: Object store tests (content-addressing, self-verification)
+        run: python -m pytest libs/py/truvo_objstore -v
+      - name: End-to-end pipeline (collect -> extract -> corroborate)
+        run: python -m pytest tests_e2e -v
+
   build-images:
     runs-on: ubuntu-latest
-    needs: [lint, test-python, leak-tests, event-roundtrip]
+    needs: [lint, test-python, leak-tests, event-roundtrip, pipeline-e2e]
     steps:
       - uses: actions/checkout@v4
       - name: Build ledger image

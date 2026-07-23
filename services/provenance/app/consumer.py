@@ -110,4 +110,10 @@ def consume_batch(
 
 
 if __name__ == "__main__":
-    print("ingested %d claim(s)" % consume_batch())
+    import json as _json
+
+    print(_json.dumps({"ingested": consume_batch(
+        max_messages=int(os.environ.get("TRUVO_BATCH_MAX", "500")),
+        timeout_s=float(os.environ.get("TRUVO_BATCH_TIMEOUT", "12")),
+        group=os.environ.get("TRUVO_GROUP"),
+    )}))
