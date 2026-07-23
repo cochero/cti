@@ -1,0 +1,11 @@
+{
+  "_note": "Curated threat-actor aliases (intel-team-maintained data, not code). A small real subset; the production set tracks MITRE ATT&CK Groups + vendor naming. canonical is the MITRE-preferred name; aliases collapse to it.",
+  "THREAT_ACTOR": [
+    {"canonical": "Lazarus Group", "aliases": ["HIDDEN COBRA", "APT38", "Diamond Sleet", "ZINC", "Labyrinth Chollima"]},
+    {"canonical": "APT28", "aliases": ["Fancy Bear", "Sofacy", "Sednit", "Forest Blizzard", "STRONTIUM", "Pawn Storm"]},
+    {"canonical": "APT29", "aliases": ["Cozy Bear", "The Dukes", "Midnight Blizzard", "NOBELIUM", "Cloaked Ursa"]},
+    {"canonical": "Sandworm Team", "aliases": ["Sandworm", "Voodoo Bear", "Seashell Blizzard", "IRIDIUM", "Telebots"]},
+    {"canonical": "FIN7", "aliases": ["Carbanak", "Carbon Spider", "Sangria Tempest"]},
+    {"canonical": "Wizard Spider", "aliases": ["UNC1878", "TEMP.MixMaster", "Grim Spider"]}
+  ]
+}

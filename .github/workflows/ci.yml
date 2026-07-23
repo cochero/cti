@@ -105,6 +105,7 @@ jobs:
           pip install -e "libs/py/truvo_secrets[dev]" -e "libs/py/truvo_svcauth[dev]"
           pip install -e "services/ledger[dev]" -e "services/provenance[dev]"
           pip install -e "services/identity-telemetry[dev]"
+          pip install -e "services/entity-resolution[dev]" -e "services/graph[dev]"
       - name: Secrets + svcauth lib tests (live vault)
         run: |
           python -m pytest libs/py/truvo_secrets -v
@@ -114,6 +115,14 @@ jobs:
         run: python -m pytest tests_live -v
       - name: Identity-telemetry live tests (sync, snapshot, blast radius, RLS)
         working-directory: services/identity-telemetry
+        run: python -m pytest tests_live -v
+      - name: Entity-resolution tests (alias clustering unit + live)
+        working-directory: services/entity-resolution
+        run: |
+          python -m pytest tests -v
+          python -m pytest tests_live -v
+      - name: Graph tests (attack-path traversal, cycle safety)
+        working-directory: services/graph
         run: python -m pytest tests_live -v
       - name: Provenance tests (SS7.3 floor unit + live; consumer test skips without Kafka)
         working-directory: services/provenance

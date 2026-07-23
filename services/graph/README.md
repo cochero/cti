@@ -1,11 +1,19 @@
 # graph-svc
 
-Threat knowledge graph (Neo4j full-mesh / Apache AGE compact). Blast-radius and attack-path queries.
+Threat knowledge graph: actor -> uses -> malware -> exploits -> CVE, and attack-path traversal (Architecture v2 §5.1).
 
-- **Reference:** Arch SS5.1; built Phase 2
+- **Reference:** Architecture v2 §5.1; db/migrations/0009; ADR-0006
 - **Owner:** Intelligence Pipeline
-- **Status:** scaffold only -- see DEVELOPMENT_PLAN.md for the sprint that builds this.
+- **Status:** relational-adjacency v0 (recursive CTE); Neo4j/AGE deferred per ADR-0006
 
-Before first staging traffic this component needs: OTel instrumentation,
-a runbook in `ops/runbooks/`, and a reviewed THREAT_MODEL.md (see
-`services/ledger/THREAT_MODEL.md` for the pattern).
+## What it does
+Ingests global threat-intel edges and answers the query scoring needs: "which actors can reach this CVE, by what path?" — a cycle-safe, depth-bounded reverse traversal. The HTTP API is the graph DAL, so the storage engine can swap (Neo4j Full Mesh / Apache AGE Compact) without moving callers.
+
+## Proven (live)
+- Multi-actor attack paths (two actors reaching one CVE via different malware), deeper chains via campaigns, cycle safety (variant_of loops terminate, no duplicate actors), depth bounding.
+
+## Not yet
+- openCypher / real graph analytics (centrality, community detection) — see ADR-0006 revisit triggers.
+- Tenant-asset subgraph (CVE -> asset), which will be RLS-fenced, lands with Phase 3 scoring.
+
+Before staging: OTel, runbook, THREAT_MODEL.md.
