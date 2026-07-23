@@ -55,6 +55,8 @@ def test_registry_validated_roundtrip():
 
     import time
 
+    from confluent_kafka import TopicPartition
+
     schema = json.loads(CONTRACT.read_text(encoding="utf-8"))
     registry = SchemaRegistry(REGISTRY)
 
@@ -62,31 +64,32 @@ def test_registry_validated_roundtrip():
     schema_id = registry.register("%s-value" % TOPIC, schema)
     assert schema_id > 0
 
-    # 2. subscribe at LATEST and wait for assignment BEFORE producing, so
-    # the shared dev topic's accumulated backlog (claims from pipeline/DLQ
-    # tests) is invisible and we only see our own fresh message.
-    group = "roundtrip-%s" % uuid.uuid4().hex[:8]
-    consumer = Consumer(
-        {
-            "bootstrap.servers": BOOTSTRAP,
-            "group.id": group,
-            "auto.offset.reset": "latest",
-        }
-    )
-    assigned = [False]
-    consumer.subscribe([TOPIC], on_assign=lambda c, p: assigned.__setitem__(0, True))
-    deadline = time.monotonic() + 30
-    while not assigned[0] and time.monotonic() < deadline:
-        consumer.poll(0.5)
-    assert assigned[0], "consumer never got partition assignment"
-
-    # 3. produce one claim in wire format
+    # 2. produce one claim, capturing the EXACT partition+offset from the
+    # delivery report. Deterministic in every environment: no dependence on
+    # earliest (defeated by the shared dev topic's backlog) or latest
+    # (races topic creation on a fresh CI broker).
     claim = sample_claim()
-    producer = Producer({"bootstrap.servers": BOOTSTRAP})
-    producer.produce(TOPIC, value=encode(schema, schema_id, claim), key=claim["claim_id"])
-    assert producer.flush(10) == 0, "message not delivered"
+    delivered = {}
 
-    # 4. consume it back and decode via the registry
+    def _on_delivery(err, msg):
+        if err is None:
+            delivered["tp"] = TopicPartition(TOPIC, msg.partition(), msg.offset())
+
+    producer = Producer({"bootstrap.servers": BOOTSTRAP})
+    producer.produce(
+        TOPIC, value=encode(schema, schema_id, claim), key=claim["claim_id"],
+        on_delivery=_on_delivery,
+    )
+    assert producer.flush(10) == 0, "message not delivered"
+    assert "tp" in delivered, "no delivery report"
+
+    # 3. read starting exactly at our message's offset
+    consumer = Consumer({
+        "bootstrap.servers": BOOTSTRAP,
+        "group.id": "roundtrip-%s" % uuid.uuid4().hex[:8],
+        "enable.auto.commit": False,
+    })
+    consumer.assign([delivered["tp"]])
     got = None
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
@@ -96,7 +99,7 @@ def test_registry_validated_roundtrip():
         try:
             decoded_id, record = decode(msg.value(), registry.get_schema)
         except Exception:
-            continue  # shared dev topic may hold poison from DLQ tests
+            continue
         if record["claim_id"] == claim["claim_id"]:
             got = (decoded_id, record)
             break
