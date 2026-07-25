@@ -8,10 +8,9 @@ tests_live/test_rls_via_django.py against the app role.
 import uuid
 
 import pytest
+from accounts.models import Membership, User
 from django.db import connection
 from rest_framework.test import APIClient
-
-from accounts.models import Membership, User
 
 
 def make_tenant(slug):

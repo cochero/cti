@@ -21,9 +21,8 @@ if ADMIN_URL and VAULT:
         "TRUVO_IDENTITY_DB_URL",
         "postgresql://truvo_app:truvo-app-dev-only@localhost:5432/truvo",
     )
-    from fastapi.testclient import TestClient
-
     from app.main import app
+    from fastapi.testclient import TestClient
 
     client = TestClient(app)
 

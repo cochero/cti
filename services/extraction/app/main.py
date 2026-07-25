@@ -20,11 +20,11 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from confluent_kafka import Consumer, Producer
+from truvo_events import SchemaRegistry, decode, encode
+from truvo_objstore import ObjectStore
 
 from app.extractors import Extractor
 from app.gate import gate_candidates
-from truvo_events import SchemaRegistry, decode, encode
-from truvo_objstore import ObjectStore
 
 RAWDOC_TOPIC = "intel.rawdoc.v1"
 CLAIM_TOPIC = "intel.claims.v1"

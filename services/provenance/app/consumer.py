@@ -14,9 +14,9 @@ import os
 from typing import Optional
 
 from confluent_kafka import Consumer, Producer
+from truvo_events import SchemaRegistry, decode
 
 from app.main import ClaimIn, ingest_claim
-from truvo_events import SchemaRegistry, decode
 
 TOPIC = "intel.claims.v1"
 DLQ_TOPIC = TOPIC + ".dlq"

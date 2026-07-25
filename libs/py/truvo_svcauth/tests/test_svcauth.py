@@ -1,5 +1,4 @@
 import pytest
-
 from truvo_svcauth import (
     MAX_SKEW_S,
     SvcAuthError,

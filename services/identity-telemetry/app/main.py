@@ -54,7 +54,7 @@ def _provider(req: SyncRequest) -> IdentityProvider:
         try:
             secret = resolve(req.client_secret_ref)
         except (SecretRefError, KeyError) as exc:
-            raise HTTPException(422, "client_secret_ref: %s" % exc)
+            raise HTTPException(422, "client_secret_ref: %s" % exc) from exc
         return EntraProvider(req.idp_tenant_id, req.client_id, secret)
     if req.provider == "fake":
         return FakeProvider([Identity(**i) for i in req.fake_identities or []])
@@ -93,7 +93,7 @@ def sync(tenant: str, req: SyncRequest) -> Dict[str, Any]:
         conn.commit()
     except psycopg2.errors.ForeignKeyViolation:
         conn.rollback()
-        raise HTTPException(404, "unknown tenant")
+        raise HTTPException(404, "unknown tenant") from None
     except Exception:
         conn.rollback()
         raise

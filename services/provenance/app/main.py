@@ -89,7 +89,7 @@ def register_source(src: SourceIn) -> Dict[str, str]:
             (src.source_id, src.name, src.source_type, src.grade, src.url),
         )
     except psycopg2.errors.CheckViolation as exc:
-        raise HTTPException(status_code=422, detail=str(exc).splitlines()[0])
+        raise HTTPException(status_code=422, detail=str(exc).splitlines()[0]) from exc
     return {"source_id": src.source_id}
 
 
@@ -130,9 +130,9 @@ def ingest_claim(claim: ClaimIn) -> Dict[str, str]:
             status_code=422,
             detail="unknown source_id %r — claims from unregistered sources"
                    " are refused, not defaulted" % claim.source_id,
-        )
+        ) from None
     except psycopg2.errors.CheckViolation as exc:
-        raise HTTPException(status_code=422, detail=str(exc).splitlines()[0])
+        raise HTTPException(status_code=422, detail=str(exc).splitlines()[0]) from exc
     return {"claim_id": claim.claim_id}
 
 

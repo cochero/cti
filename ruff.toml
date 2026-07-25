@@ -1,0 +1,27 @@
+# TRUVO lint config — explicit, stable ruleset so lint is deterministic
+# across ruff versions (unpinned linters are a CI-flakiness source; CI also
+# pins the ruff version, see .github/workflows/ci.yml).
+#
+# We select the correctness-and-hygiene rules we actually enforce and do NOT
+# opt into pyupgrade (UP) style rewrites: the codebase uses %-formatting
+# deliberately and consistently, which is correct, readable, and not a defect.
+
+target-version = "py313"
+line-length = 100
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes (unused imports/vars, undefined names — real bugs)
+    "W",   # pycodestyle warnings
+    "I",   # import sorting
+    "B",   # flake8-bugbear (likely bugs)
+]
+ignore = [
+    "E501",  # line length handled by formatter tolerance; not worth churn
+    "B008",  # FastAPI Depends() in defaults is the framework idiom
+]
+
+[lint.per-file-ignores]
+"**/tests/**" = ["B011"]
+"**/tests_live/**" = ["E731"]  # lambda aliases are fine in test setup

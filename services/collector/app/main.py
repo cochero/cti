@@ -20,10 +20,10 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from confluent_kafka import Producer
-
-from app.collectors import Collector
 from truvo_events import SchemaRegistry, encode
 from truvo_objstore import ObjectStore
+
+from app.collectors import Collector
 
 TOPIC = "intel.rawdoc.v1"
 _CONTRACT = (

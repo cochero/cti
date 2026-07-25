@@ -23,11 +23,10 @@ pytestmark = pytest.mark.skipif(
 )
 
 if ADMIN_URL:
-    import psycopg2
-    from fastapi.testclient import TestClient
-
     import app.main as ledger
+    import psycopg2
     from app.store import PostgresStore
+    from fastapi.testclient import TestClient
 
     _pg_store = PostgresStore(APP_URL)
     client = TestClient(ledger.app)

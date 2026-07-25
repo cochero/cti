@@ -27,9 +27,8 @@ if ADMIN_URL:
 def test_poison_message_lands_in_dlq():
     import time
 
-    from confluent_kafka import Consumer, Producer
-
     from app.consumer import DLQ_TOPIC, TOPIC, consume_batch
+    from confluent_kafka import Consumer, Producer
 
     marker = ("poison-%s" % uuid.uuid4().hex[:12]).encode()
 

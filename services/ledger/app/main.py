@@ -13,12 +13,11 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from app.anchor import AnchorMismatch, AnchorRecord, check_chain_extends, make_anchor
+from app.store import store_from_env
+from app.svcgate import require_service_identity
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field
-
-from app.anchor import AnchorMismatch, AnchorRecord, check_chain_extends, make_anchor
-from app.svcgate import require_service_identity
-from app.store import store_from_env
 from truvo_core.hashchain import ChainError, LedgerEntry, replay_hashes, verify_chain
 
 app = FastAPI(title="truvo-ledger", version="0.2.0")
@@ -66,7 +65,7 @@ def append(
             payload=req.payload,
         )
     except (TypeError, ValueError) as exc:  # canonicalization failures
-        raise HTTPException(status_code=422, detail=str(exc))
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.get("/v1/{tenant}/entries", response_model=List[EntryOut])
@@ -89,7 +88,7 @@ def verify(
         count = verify_chain(chain)
     except ChainError as exc:
         # A failed verification is a sev-1 (Architecture v2 SS9.4).
-        raise HTTPException(status_code=500, detail="CHAIN INVALID: %s" % exc)
+        raise HTTPException(status_code=500, detail="CHAIN INVALID: %s" % exc) from exc
     replay_ok = replay_hashes(chain) == [e.entry_hash for e in chain]
     result: Dict[str, Any] = {
         "tenant": tenant, "entries": count, "chain_valid": True,
@@ -109,7 +108,7 @@ def verify(
         except AnchorMismatch as exc:
             # Rewritten history that passed chain_valid: the exact attack
             # anchoring exists to catch. sev-1.
-            raise HTTPException(status_code=500, detail="ANCHOR MISMATCH: %s" % exc)
+            raise HTTPException(status_code=500, detail="ANCHOR MISMATCH: %s" % exc) from exc
         result["anchor_ok"] = True
     return result
 

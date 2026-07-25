@@ -18,10 +18,10 @@ import psycopg2
 import psycopg2.pool
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from truvo_core.hashchain import append_entry
 
 from app.engine import WEIGHTS_V0, score
 from app.gather import gather_inputs
-from truvo_core.hashchain import append_entry
 
 app = FastAPI(title="truvo-scoring", version="0.1.0")
 

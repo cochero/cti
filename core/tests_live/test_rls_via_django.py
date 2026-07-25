@@ -30,9 +30,8 @@ if ADMIN_URL:
     django.setup()
 
     import psycopg2
-    from django.test import Client
-
     from accounts.models import Membership, User
+    from django.test import Client
 
 
 @pytest.fixture()

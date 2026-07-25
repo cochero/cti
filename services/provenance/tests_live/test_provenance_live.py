@@ -24,9 +24,8 @@ pytestmark = pytest.mark.skipif(
 if ADMIN_URL:
     os.environ["TRUVO_PROVENANCE_DB_URL"] = APP_URL
     import psycopg2
-    from fastapi.testclient import TestClient
-
     from app.main import app
+    from fastapi.testclient import TestClient
 
     client = TestClient(app)
 
@@ -137,9 +136,8 @@ def test_ingest_is_idempotent(cleanup):
 )
 def test_backbone_consumer_end_to_end(cleanup):
     """Produce an intel.claims.v1 event -> consume_batch -> fact queryable."""
-    from confluent_kafka import Producer
-
     from app.consumer import consume_batch
+    from confluent_kafka import Producer
     from truvo_events import SchemaRegistry, encode
 
     subject = "CVE-2026-%s" % uuid.uuid4().hex[:6]

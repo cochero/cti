@@ -22,7 +22,6 @@ pytestmark = pytest.mark.skipif(
 if ADMIN_URL:
     os.environ["TRUVO_EVAL_DB_URL"] = APP_URL
     import psycopg2
-
     from app.backtest import backtest
 
 

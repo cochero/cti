@@ -1,7 +1,6 @@
-from fastapi.testclient import TestClient
-
 import app.main as ledger
 from app.store import MemoryStore
+from fastapi.testclient import TestClient
 
 client = TestClient(ledger.app)
 

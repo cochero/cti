@@ -9,7 +9,6 @@ These are the CI embodiment of two architecture guarantees:
 import dataclasses
 
 import pytest
-
 from truvo_core.hashchain import (
     GENESIS_HASH,
     ChainError,

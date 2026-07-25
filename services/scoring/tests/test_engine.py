@@ -5,7 +5,6 @@ of these breaks, scores are neither auditable nor trustworthy.
 """
 
 import pytest
-
 from app.engine import WEIGHTS_V0, ScoringInput, score
 
 

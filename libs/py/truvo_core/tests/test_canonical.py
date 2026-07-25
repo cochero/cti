@@ -1,5 +1,4 @@
 import pytest
-
 from truvo_core.canonical import CanonicalizationError, canonical_json
 
 

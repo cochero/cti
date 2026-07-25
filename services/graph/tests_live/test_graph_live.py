@@ -22,9 +22,8 @@ pytestmark = pytest.mark.skipif(
 if ADMIN_URL:
     os.environ["TRUVO_GRAPH_DB_URL"] = APP_URL
     import psycopg2
-    from fastapi.testclient import TestClient
-
     from app.main import app
+    from fastapi.testclient import TestClient
 
     client = TestClient(app)
 

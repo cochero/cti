@@ -11,7 +11,6 @@ import time
 from typing import Dict, Tuple
 
 from fastapi import HTTPException, Request
-
 from truvo_svcauth import SvcAuthError, verify_headers
 
 _PUBKEY_TTL_S = 60
@@ -42,4 +41,4 @@ async def require_service_identity(request: Request) -> str:
             _get_pubkey,
         )
     except (SvcAuthError, KeyError) as exc:
-        raise HTTPException(status_code=401, detail="service auth: %s" % exc)
+        raise HTTPException(status_code=401, detail="service auth: %s" % exc) from exc

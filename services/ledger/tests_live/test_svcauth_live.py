@@ -19,11 +19,10 @@ pytestmark = pytest.mark.skipif(
 )
 
 if ADMIN_URL and VAULT:
-    import psycopg2
-    from fastapi.testclient import TestClient
-
     import app.main as ledger
+    import psycopg2
     from app.store import PostgresStore
+    from fastapi.testclient import TestClient
     from truvo_secrets import SecretsClient
     from truvo_svcauth import generate_keypair, sign_headers
 

@@ -33,10 +33,10 @@ def _app_url():
 @pytest.fixture(scope="session")
 def admin_conn():
     _require_db()
-    import psycopg2
-
     import sys
     from pathlib import Path
+
+    import psycopg2
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from migrate import migrate

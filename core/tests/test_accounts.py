@@ -1,9 +1,8 @@
 import uuid
 
 import pytest
-from django.db import IntegrityError
-
 from accounts.models import Membership, User
+from django.db import IntegrityError
 
 
 @pytest.mark.django_db

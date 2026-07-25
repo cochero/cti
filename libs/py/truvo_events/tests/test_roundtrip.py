@@ -49,13 +49,10 @@ def sample_claim():
 
 
 def test_registry_validated_roundtrip():
-    from confluent_kafka import Consumer, Producer
-
-    from truvo_events import SchemaRegistry, decode, encode
-
     import time
 
-    from confluent_kafka import TopicPartition
+    from confluent_kafka import Consumer, Producer, TopicPartition
+    from truvo_events import SchemaRegistry, decode, encode
 
     schema = json.loads(CONTRACT.read_text(encoding="utf-8"))
     registry = SchemaRegistry(REGISTRY)

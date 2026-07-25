@@ -4,7 +4,6 @@ import os
 import uuid
 
 import pytest
-
 from truvo_secrets import SecretRefError, SecretsClient, resolve
 
 VAULT = os.environ.get("TRUVO_VAULT_ADDR")

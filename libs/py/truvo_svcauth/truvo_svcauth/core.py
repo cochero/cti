@@ -25,7 +25,6 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey,
     Ed25519PublicKey,
 )
-
 from truvo_core.canonical import canonical_json
 
 __all__ = [
@@ -91,7 +90,7 @@ def verify_headers(
     try:
         skew = abs((now if now is not None else time.time()) - int(ts))
     except ValueError:
-        raise SvcAuthError("bad timestamp")
+        raise SvcAuthError("bad timestamp") from None
     if skew > MAX_SKEW_S:
         raise SvcAuthError("timestamp outside replay window (%.0fs)" % skew)
     try:
@@ -102,5 +101,5 @@ def verify_headers(
     except SvcAuthError:
         raise
     except Exception:
-        raise SvcAuthError("signature verification failed for %r" % svc)
+        raise SvcAuthError("signature verification failed for %r" % svc) from None
     return svc

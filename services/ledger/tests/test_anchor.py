@@ -1,3 +1,4 @@
+import pytest
 from app.anchor import (
     AnchorMismatch,
     AnchorRecord,
@@ -6,8 +7,6 @@ from app.anchor import (
     verify_anchor_signature,
 )
 from truvo_core.hashchain import append_entry
-
-import pytest
 
 
 def build_chain(n=3):
