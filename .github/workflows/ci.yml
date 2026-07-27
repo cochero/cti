@@ -110,6 +110,8 @@ jobs:
           pip install -e "services/identity-telemetry[dev]"
           pip install -e "services/entity-resolution[dev]" -e "services/graph[dev]"
           pip install -e "services/scoring[dev]" -e "services/eval-harness[dev]"
+          pip install -e "services/detection-factory[dev]" \
+                      -e "services/response-orchestrator[dev]"
       - name: Secrets + svcauth lib tests (live vault)
         run: |
           python -m pytest libs/py/truvo_secrets -v
@@ -135,6 +137,16 @@ jobs:
           python -m pytest tests_live -v
       - name: Eval-harness tests (calibration unit + backtest live)
         working-directory: services/eval-harness
+        run: |
+          python -m pytest tests -v
+          python -m pytest tests_live -v
+      - name: Detection-factory tests (Sigma detonation/FP-budget unit + live, T3 guard)
+        working-directory: services/detection-factory
+        run: |
+          python -m pytest tests -v
+          python -m pytest tests_live -v
+      - name: Response-orchestrator tests (guardrails safety spec unit + live)
+        working-directory: services/response-orchestrator
         run: |
           python -m pytest tests -v
           python -m pytest tests_live -v
