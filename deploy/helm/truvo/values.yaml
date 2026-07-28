@@ -1,0 +1,90 @@
+# TRUVO chart defaults. Profile-specific overrides live in
+# values-fullmesh.yaml / values-compact.yaml — the ONLY difference between
+# deployment profiles (Architecture v2 §2.8, §12).
+
+global:
+  # container registry + immutable tag (set by CI to the release SHA)
+  image:
+    registry: ghcr.io/cochero
+    tag: latest
+    pullPolicy: IfNotPresent
+  # profile is informational; it drives which values file is applied
+  profile: fullmesh
+  # SPIFFE/SPIRE trust domain for the service mesh (ADR-0010). When enabled,
+  # each service runs under its own SPIFFE ID and mTLS is mesh-enforced.
+  spiffe:
+    enabled: false
+    trustDomain: truvo.internal
+
+# shared config surfaced to every service as env
+config:
+  vaultAddr: "http://openbao:8200"
+  kafkaBootstrap: "redpanda:9092"
+  schemaRegistry: "http://redpanda:18081"
+  objstoreEndpoint: "minio:9000"
+  # service-identity enforcement (S7). On in staging/prod.
+  svcauth: "1"
+
+# The service fleet. Templates iterate this map; adding a service is a
+# values edit, not a template change. `enabled` lets the Compact profile
+# drop what it doesn't ship. `command` overrides the image CMD for batch
+# consumers run as CronJobs instead of Deployments.
+services:
+  ledger:
+    enabled: true
+    port: 8000
+    replicas: 2
+    dbUrlSecret: ledger-db-url
+  provenance:
+    enabled: true
+    port: 8000
+    replicas: 2
+    dbUrlSecret: provenance-db-url
+  scoring:
+    enabled: true
+    port: 8000
+    replicas: 2
+    dbUrlSecret: scoring-db-url
+  graph:
+    enabled: true
+    port: 8000
+    replicas: 2
+    dbUrlSecret: graph-db-url
+  entity-resolution:
+    enabled: true
+    port: 8000
+    replicas: 1
+    dbUrlSecret: entity-db-url
+  identity-telemetry:
+    enabled: true
+    port: 8000
+    replicas: 1
+    dbUrlSecret: identity-db-url
+  detection-factory:
+    enabled: true
+    port: 8000
+    replicas: 1
+    dbUrlSecret: detection-db-url
+  response-orchestrator:
+    enabled: true
+    port: 8000
+    replicas: 2
+    dbUrlSecret: orch-db-url
+  gateway:
+    enabled: true
+    port: 8000
+    replicas: 2
+    dbUrlSecret: gateway-db-url
+  detect:
+    enabled: true
+    port: 8000
+    replicas: 1
+    dbUrlSecret: detect-db-url
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi

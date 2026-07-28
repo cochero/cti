@@ -1,0 +1,14 @@
+# Full Mesh (SaaS) profile — Architecture v2 §12.
+# Managed/clustered data stores, all services enabled, HA replicas,
+# service mesh + mTLS on.
+global:
+  profile: fullmesh
+  spiffe:
+    enabled: true
+    trustDomain: truvo.internal
+config:
+  # points at the managed/clustered backends (Kafka, Neo4j, Qdrant,
+  # OpenSearch, cloud KMS-backed OpenBao) provisioned outside this chart
+  vaultAddr: "https://vault.truvo.internal:8200"
+  kafkaBootstrap: "kafka:9092"
+# all services keep their defaults (enabled, HA replicas)

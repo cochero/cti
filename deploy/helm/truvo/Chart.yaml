@@ -1,0 +1,9 @@
+apiVersion: v2
+name: truvo
+description: >-
+  TRUVO CTI platform — one chart, two deployment profiles (Full Mesh SaaS /
+  Compact air-gap). Profiles differ only in values (Architecture v2 §2.8, §12),
+  never in templates.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

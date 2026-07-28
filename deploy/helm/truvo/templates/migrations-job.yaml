@@ -1,0 +1,28 @@
+# SQL migrations run as a pre-install/pre-upgrade hook, before any service
+# starts — the content-hash-locked runner is idempotent, so re-runs are safe.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: truvo-migrate
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: truvo-migrate
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: {{ .Values.global.image.registry }}/migrate:{{ .Values.global.image.tag }}
+          command: ["python", "db/migrate.py"]
+          env:
+            - name: TRUVO_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: admin-db-url
+                  key: url

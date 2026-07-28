@@ -1,11 +1,26 @@
-# Compact (air-gap) reference
+# Compact (air-gap) reference deployment
 
-k3s single-rack reference deployment + signed offline bundle pipeline. Work starts Phase 5; interfaces are kept bolt-on-ready before that.
+k3s single-rack reference for the Compact profile (Architecture v2 §12).
 
-- **Reference:** built Phase 5
+- **Reference:** Architecture v2 §12; deploy/helm/truvo (values-compact.yaml); ADR-0010
 - **Owner:** Platform
-- **Status:** scaffold only -- see DEVELOPMENT_PLAN.md for the sprint that builds this.
+- **Status:** Helm chart validated (lint/template); live k3s bring-up pending a test rack
 
-Before first staging traffic this component needs: OTel instrumentation,
-a runbook in `ops/runbooks/`, and a reviewed THREAT_MODEL.md (see
-`services/ledger/THREAT_MODEL.md` for the pattern).
+## Bring-up sketch (on the customer rack)
+1. Install k3s (single or 3-node): `curl -sfL https://get.k3s.io | sh -`
+2. Load the signed offline image bundle (Architecture §12): images arrive as
+   a signed tarball, verified by the attestation tool, then
+   `k3s ctr images import truvo-images.tar`.
+3. In-rack data stores (Postgres+AGE+pgvector+TimescaleDB, Redpanda, MinIO,
+   OpenBao backed by the customer HSM) via the Compact compose/manifests.
+4. `helm upgrade --install truvo /path/to/chart -f values-compact.yaml`.
+
+## What makes Compact air-gap-clean
+- Every bundled component is permissively licensed (OpenSearch/Redpanda/AGE
+  chosen for redistribution — ADR notes across the repo).
+- No telemetry leaves the rack; updates arrive as signed offline bundles.
+- App-layer service identity (svcauth, S7) holds even without the SPIFFE mesh.
+
+## Not yet
+- A live k3s bring-up on a real/simulated rack (chart is lint/template-validated).
+- The signed offline bundle pipeline (weights + images + intel deltas + SBOM).

@@ -1,0 +1,25 @@
+# Compact (air-gap) profile — Architecture v2 §12.
+# Single-rack substitutions (Redpanda, AGE+pgvector in Postgres, vLLM),
+# reduced replicas, mesh optional. Same templates, different values.
+global:
+  profile: compact
+  spiffe:
+    enabled: false   # single-rack; app-layer svcauth still enforced
+config:
+  vaultAddr: "http://openbao:8200"      # customer HSM-backed, in-rack
+  kafkaBootstrap: "redpanda:9092"        # Kafka-API compatible single binary
+# Compact runs one replica of everything and can drop SaaS-only pieces.
+services:
+  ledger:                {replicas: 1}
+  provenance:            {replicas: 1}
+  scoring:               {replicas: 1}
+  graph:                 {replicas: 1}
+  entity-resolution:     {replicas: 1}
+  identity-telemetry:    {replicas: 1}
+  detection-factory:     {replicas: 1}
+  response-orchestrator: {replicas: 1}
+  gateway:               {replicas: 1}
+  detect:                {replicas: 1}
+resources:
+  requests: {cpu: 50m, memory: 96Mi}
+  limits:   {cpu: 500m, memory: 384Mi}

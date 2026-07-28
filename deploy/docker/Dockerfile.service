@@ -1,0 +1,32 @@
+# Generic TRUVO service image, parameterized by SERVICE.
+# Build from repo root:
+#   docker build -f deploy/docker/Dockerfile.service --build-arg SERVICE=scoring \
+#     -t ghcr.io/cochero/scoring:<sha> .
+#
+# Every service follows the same shape (services/<name> with a pyproject that
+# depends on the local truvo-* libs), so one Dockerfile builds them all —
+# internal names always resolve from the repo, never PyPI (T6 guard).
+FROM python:3.13-slim
+ARG SERVICE
+WORKDIR /srv
+
+# local libs first (better layer caching; internal deps resolve locally)
+COPY libs/py /srv/libs/py
+RUN pip install --no-cache-dir \
+    /srv/libs/py/truvo_core \
+    /srv/libs/py/truvo_secrets \
+    /srv/libs/py/truvo_svcauth \
+    /srv/libs/py/truvo_events \
+    /srv/libs/py/truvo_objstore
+
+COPY contracts /srv/contracts
+COPY services/${SERVICE} /srv/service
+RUN pip install --no-cache-dir /srv/service
+
+# non-root runtime
+RUN useradd --system --no-create-home truvo
+USER truvo
+
+EXPOSE 8000
+# app.main:app is the uniform ASGI entrypoint across services
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--app-dir", "/srv/service"]

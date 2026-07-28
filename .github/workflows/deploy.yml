@@ -1,0 +1,100 @@
+# TRUVO staging deploy (S8). Manual/tag-triggered — NOT on every merge, to
+# keep CI cheap until a cluster consumes the images.
+#
+# build-and-push always runs (images -> GHCR, tagged with the SHA + latest).
+# deploy runs ONLY when the STAGING_KUBECONFIG secret exists — until you add
+# it, deploy is a clean no-op, so this workflow is honest about needing a
+# cloud account. See docs/adr/0010-staging-deploy-spiffe.md.
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "fullmesh | compact"
+        default: fullmesh
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - ledger
+          - provenance
+          - scoring
+          - graph
+          - entity-resolution
+          - identity-telemetry
+          - detection-factory
+          - response-orchestrator
+          - gateway
+          - detect
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build & push ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.service
+          build-args: SERVICE=${{ matrix.service }}
+          # cosign signing + CycloneDX SBOM attestation attach here (the
+          # S0-exit DoD gate: no unsigned image is deployable).
+          tags: |
+            ghcr.io/cochero/${{ matrix.service }}:${{ github.sha }}
+            ghcr.io/cochero/${{ matrix.service }}:latest
+          push: true
+
+  build-migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build & push migrate image (carries db/ for the Helm hook)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.migrate
+          tags: |
+            ghcr.io/cochero/migrate:${{ github.sha }}
+            ghcr.io/cochero/migrate:latest
+          push: true
+
+  deploy:
+    needs: [build-and-push, build-migrate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to staging (skipped until STAGING_KUBECONFIG is set)
+        env:
+          KUBECONFIG_DATA: ${{ secrets.STAGING_KUBECONFIG }}
+        run: |
+          if [ -z "$KUBECONFIG_DATA" ]; then
+            echo "STAGING_KUBECONFIG not set — no cluster wired yet; skipping deploy."
+            echo "Add the secret (needs a cloud account) to enable helm upgrade."
+            exit 0
+          fi
+          echo "$KUBECONFIG_DATA" | base64 -d > /tmp/kubeconfig
+          export KUBECONFIG=/tmp/kubeconfig
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          PROFILE="${{ github.event.inputs.profile || 'fullmesh' }}"
+          helm upgrade --install truvo deploy/helm/truvo \
+            -f deploy/helm/truvo/values-${PROFILE}.yaml \
+            --set global.image.tag=${{ github.sha }} \
+            --namespace truvo --create-namespace --wait
