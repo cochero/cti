@@ -29,8 +29,10 @@ mobile/build/
 .DS_Store
 Thumbs.db
 
-# Secrets & local env — never commit
+# Secrets & local env — never commit (but keep the .example template)
 .env
+.env.*
+!.env.example
 *.local
 *.pem
 *.key

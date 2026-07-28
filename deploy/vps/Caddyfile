@@ -1,0 +1,18 @@
+# Caddy: automatic Let's Encrypt TLS + reverse proxy.
+#
+# CRITICAL: only the Django `core` is public. The FastAPI microservices have
+# NO authentication of their own — they trust the network + service-identity
+# signing. Exposing them to the internet would bypass all auth. Caddy routes
+# ONLY to core (which enforces SSO/RBAC). The services stay internal.
+{$TRUVO_DOMAIN} {
+    encode gzip zstd
+    # security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+    reverse_proxy core:8000
+}

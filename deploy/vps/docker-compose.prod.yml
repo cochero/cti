@@ -1,0 +1,255 @@
+# TRUVO production stack — single-VPS docker-compose.
+# Data stores + all HTTP services + Django core + Caddy TLS proxy.
+# Bring-up: see deploy/vps/README.md. Never commit the real .env.
+#
+# Only Caddy exposes ports to the host (80/443). Every other component is
+# reachable ONLY on the internal compose network — data stores are never
+# exposed to the internet (T4).
+name: truvo-prod
+
+x-svc-common: &svc-common
+  restart: unless-stopped
+  depends_on:
+    postgres: {condition: service_healthy}
+    openbao: {condition: service_started}
+    redpanda: {condition: service_healthy}
+    minio: {condition: service_healthy}
+    migrate: {condition: service_completed_successfully}
+  networks: [truvo]
+
+x-svc-env: &svc-env
+  TRUVO_VAULT_ADDR: "http://openbao:8200"
+  TRUVO_VAULT_TOKEN: "${TRUVO_VAULT_TOKEN}"
+  TRUVO_KAFKA_BOOTSTRAP: "redpanda:9092"
+  TRUVO_SCHEMA_REGISTRY: "http://redpanda:18081"
+  TRUVO_OBJSTORE_ENDPOINT: "minio:9000"
+  TRUVO_OBJSTORE_ACCESS_KEY: "${MINIO_USER}"
+  TRUVO_OBJSTORE_SECRET_KEY: "${MINIO_PASSWORD}"
+  TRUVO_SVCAUTH: "1"
+
+x-healthcheck: &svc-health
+  healthcheck:
+    test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status==200 else 1)\""]
+    interval: 15s
+    timeout: 5s
+    retries: 5
+
+services:
+  # ---------- data stores (no host ports; internal network only) ----------
+  postgres:
+    image: timescale/timescaledb:latest-pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: truvo
+      POSTGRES_USER: truvo
+      POSTGRES_PASSWORD: "${POSTGRES_ADMIN_PASSWORD}"
+    volumes: [pg_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U truvo -d truvo"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    networks: [truvo]
+
+  redpanda:
+    image: redpandadata/redpanda:latest
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=1500M
+      - --mode=dev-container
+      - --kafka-addr=internal://0.0.0.0:9092
+      - --advertise-kafka-addr=internal://redpanda:9092
+      - --schema-registry-addr=internal://0.0.0.0:18081
+    volumes: [redpanda_data:/var/lib/redpanda/data]
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health --exit-when-healthy || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    networks: [truvo]
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: "${MINIO_USER}"
+      MINIO_ROOT_PASSWORD: "${MINIO_PASSWORD}"
+    volumes: [minio_data:/data]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    networks: [truvo]
+
+  openbao:
+    image: quay.io/openbao/openbao:latest
+    restart: unless-stopped
+    # PRODUCTION mode with a file backend (persistent). Must be initialized
+    # and unsealed once (see README + bootstrap.sh) — NOT dev mode.
+    command: server -config=/openbao/config/config.hcl
+    cap_add: [IPC_LOCK]
+    volumes:
+      - bao_data:/openbao/data
+      - ./openbao.hcl:/openbao/config/config.hcl:ro
+    networks: [truvo]
+
+  # ---------- SQL migrations (runs once, before services) ----------
+  migrate:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.migrate
+    environment:
+      TRUVO_DATABASE_URL: "postgresql://truvo:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/truvo"
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: on-failure
+    networks: [truvo]
+
+  ledger:
+    <<: [*svc-common, *svc-health]
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.service
+      args: {SERVICE: ledger}
+    environment:
+      <<: *svc-env
+      TRUVO_LEDGER_DB_URL: "${TRUVO_APP_DB_URL}"
+
+  provenance:
+    <<: [*svc-common, *svc-health]
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.service
+      args: {SERVICE: provenance}
+    environment:
+      <<: *svc-env
+      TRUVO_PROVENANCE_DB_URL: "${TRUVO_APP_DB_URL}"
+
+  scoring:
+    <<: [*svc-common, *svc-health]
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.service
+      args: {SERVICE: scoring}
+    environment:
+      <<: *svc-env
+      TRUVO_SCORING_DB_URL: "${TRUVO_APP_DB_URL}"
+
+  graph:
+    <<: [*svc-common, *svc-health]
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.service
+      args: {SERVICE: graph}
+    environment:
+      <<: *svc-env
+      TRUVO_GRAPH_DB_URL: "${TRUVO_APP_DB_URL}"
+
+  entity-resolution:
+    <<: [*svc-common, *svc-health]
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.service
+      args: {SERVICE: entity-resolution}
+    environment:
+      <<: *svc-env
+      TRUVO_ENTITY_DB_URL: "${TRUVO_APP_DB_URL}"
+
+  identity-telemetry:
+    <<: [*svc-common, *svc-health]
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.service
+      args: {SERVICE: identity-telemetry}
+    environment:
+      <<: *svc-env
+      TRUVO_IDENTITY_DB_URL: "${TRUVO_APP_DB_URL}"
+
+  detection-factory:
+    <<: [*svc-common, *svc-health]
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.service
+      args: {SERVICE: detection-factory}
+    environment:
+      <<: *svc-env
+      TRUVO_DETECTION_DB_URL: "${TRUVO_APP_DB_URL}"
+
+  response-orchestrator:
+    <<: [*svc-common, *svc-health]
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.service
+      args: {SERVICE: response-orchestrator}
+    environment:
+      <<: *svc-env
+      TRUVO_ORCH_DB_URL: "${TRUVO_APP_DB_URL}"
+
+  gateway:
+    <<: [*svc-common, *svc-health]
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.service
+      args: {SERVICE: gateway}
+    environment:
+      <<: *svc-env
+      TRUVO_GATEWAY_DB_URL: "${TRUVO_APP_DB_URL}"
+
+  detect:
+    <<: [*svc-common, *svc-health]
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.service
+      args: {SERVICE: detect}
+    environment:
+      <<: *svc-env
+      TRUVO_DETECT_DB_URL: "${TRUVO_APP_DB_URL}"
+
+  # ---------- Django core ----------
+  core:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.core
+    restart: unless-stopped
+    depends_on:
+      postgres: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+    environment:
+      TRUVO_DB_URL: "postgresql://truvo:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/truvo"
+      TRUVO_SECRET_KEY: "${DJANGO_SECRET_KEY}"
+      TRUVO_DEBUG: "0"
+      TRUVO_ALLOWED_HOSTS: "${TRUVO_DOMAIN},core,localhost"
+    networks: [truvo]
+
+  # ---------- Caddy: TLS termination + reverse proxy (only exposed ports) ----------
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      TRUVO_DOMAIN: "${TRUVO_DOMAIN}"
+    depends_on: [core]
+    networks: [truvo]
+
+networks:
+  truvo:
+    driver: bridge
+
+volumes:
+  pg_data:
+  redpanda_data:
+  minio_data:
+  bao_data:
+  caddy_data:
+  caddy_config:

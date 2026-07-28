@@ -1,0 +1,24 @@
+# Django core image (tenancy, RBAC, SSO, MIS API). Distinct from the FastAPI
+# services because Django has its own entrypoint + migrations.
+#   docker build -f deploy/docker/Dockerfile.core -t ghcr.io/cochero/core:<sha> .
+FROM python:3.13-slim
+WORKDIR /srv
+
+COPY libs/py /srv/libs/py
+RUN pip install --no-cache-dir /srv/libs/py/truvo_core
+
+COPY db /srv/db
+COPY core /srv/core
+RUN pip install --no-cache-dir /srv/core gunicorn uvicorn[standard]
+
+RUN useradd --system --no-create-home truvo
+USER truvo
+WORKDIR /srv/core
+
+EXPOSE 8000
+# Django migrations (accounts/auth/sessions) run at start; the SQL-first RLS
+# tables are created by the separate migrate job before this. gunicorn with
+# uvicorn workers serves the ASGI app.
+CMD ["sh", "-c", "python manage.py migrate --noinput && \
+    gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 \
+    --access-logfile - --error-logfile -"]
