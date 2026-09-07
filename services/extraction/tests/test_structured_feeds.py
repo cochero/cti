@@ -149,3 +149,33 @@ class TestModelVersion:
         sx = _sx()
         assert sx.model_version.startswith("structured-feed-v0.1+")
         assert "fake-extractor" in sx.model_version
+
+
+class TestLLMFencedJSON:
+    """Models routinely wrap JSON in markdown fences — the parser strips
+    one outer fence; the gate still validates everything after."""
+
+    def test_fenced_json_parsed(self):
+        from app.extractors import LLMExtractor
+        fenced = "```json\n[{\"subject_type\": \"CVE\", " \
+                 "\"subject_value\": \"CVE-2021-44228\", " \
+                 "\"assertion\": \"mentioned\", \"object_value\": null, " \
+                 "\"extraction_confidence_millis\": 900, " \
+                 "\"attack_technique_ids\": []}]\n```"
+        llm = LLMExtractor(invoke=lambda s, u: fenced)
+        cands = llm.extract("advisory text")
+        assert len(cands) == 1
+        assert cands[0]["subject_value"] == "CVE-2021-44228"
+
+    def test_bare_fence_and_plain_json_both_work(self):
+        from app.extractors import LLMExtractor
+        plain = "[{\"subject_type\": \"CVE\", \"subject_value\": \"CVE-2020-1\", " \
+                "\"assertion\": \"m\", \"object_value\": null, " \
+                "\"extraction_confidence_millis\": 1, " \
+                "\"attack_technique_ids\": []}]"
+        assert LLMExtractor(invoke=lambda s, u: plain).extract("t")
+        assert LLMExtractor(invoke=lambda s, u: "```\n%s\n```" % plain).extract("t")
+
+    def test_garbage_still_yields_zero(self):
+        from app.extractors import LLMExtractor
+        assert LLMExtractor(invoke=lambda s, u: "I cannot answer").extract("t") == []
