@@ -226,6 +226,33 @@ services:
       TRUVO_ALLOWED_HOSTS: "${TRUVO_DOMAIN},core,localhost"
     networks: [truvo]
 
+  # ---------- console: static SPA served by nginx (Caddy routes /api to core) ----------
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.web
+    restart: unless-stopped
+    networks: [truvo]
+
+  # ---------- pipeline runner: the scheduled heartbeat (collect->...->sweep) ----------
+  pipeline:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.pipeline
+    restart: unless-stopped
+    depends_on:
+      postgres: {condition: service_healthy}
+      redpanda: {condition: service_healthy}
+      minio: {condition: service_healthy}
+    environment:
+      TRUVO_KAFKA_BOOTSTRAP: redpanda:9092
+      TRUVO_SCHEMA_REGISTRY: http://redpanda:8081
+      TRUVO_OBJSTORE_ENDPOINT: minio:9000
+      TRUVO_APP_DB_URL: "${TRUVO_APP_DB_URL}"  # provisioned by bootstrap.sh
+      TRUVO_PROVENANCE_URL: http://provenance:8000
+      TRUVO_CYCLE_SECONDS: "${TRUVO_CYCLE_SECONDS:-21600}"
+    networks: [truvo]
+
   # ---------- Caddy: TLS termination + reverse proxy (only exposed ports) ----------
   caddy:
     image: caddy:2
@@ -239,7 +266,7 @@ services:
       - caddy_config:/config
     environment:
       TRUVO_DOMAIN: "${TRUVO_DOMAIN}"
-    depends_on: [core]
+    depends_on: [core, web]
     networks: [truvo]
 
 networks:

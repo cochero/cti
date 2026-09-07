@@ -1,0 +1,67 @@
+{{- if .Values.pipeline.enabled }}
+# The scheduled heartbeat on Kubernetes: collect -> extract ->
+# corroborate -> enrich -> sweep, one cycle per schedule. Failed cycles
+# surface as failed Jobs (an alert, not a log line — ops/run_cycle.py
+# exits non-zero and later stages still attempt to run).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "truvo.fullname" . }}-pipeline
+  labels:
+    {{- include "truvo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pipeline
+spec:
+  schedule: "{{ .Values.pipeline.schedule }}"
+  concurrencyPolicy: Forbid      # cycles are idempotent; never overlap
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            {{- include "truvo.labels" . | nindent 12 }}
+            app.kubernetes.io/component: pipeline
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+          containers:
+            - name: cycle
+              image: "{{ .Values.pipeline.image }}"
+              imagePullPolicy: IfNotPresent
+              args: ["python", "/srv/ops/run_cycle.py", "--feeds", "{{ .Values.pipeline.feeds }}"]
+              env:
+                - name: TRUVO_KAFKA_BOOTSTRAP
+                  value: {{ .Values.pipeline.kafkaBootstrap | quote }}
+                - name: TRUVO_SCHEMA_REGISTRY
+                  value: {{ .Values.pipeline.schemaRegistry | quote }}
+                - name: TRUVO_OBJSTORE_ENDPOINT
+                  value: {{ .Values.pipeline.objstoreEndpoint | quote }}
+                - name: TRUVO_APP_DB_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "truvo.fullname" . }}-db
+                      key: app-url
+                {{- if .Values.pipeline.llm.enabled }}
+                - name: TRUVO_EXTRACTOR
+                  value: llm
+                - name: TRUVO_LLM_BASE_URL
+                  value: {{ .Values.pipeline.llm.baseUrl | quote }}
+                - name: TRUVO_LLM_MODEL
+                  value: {{ .Values.pipeline.llm.model | quote }}
+                - name: TRUVO_LLM_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "truvo.fullname" . }}-llm
+                      key: api-key
+                {{- end }}
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+{{- end }}

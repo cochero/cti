@@ -74,41 +74,43 @@ def healthz() -> Dict[str, str]:
     return {"status": "ok", "service": "scoring", "weights": WEIGHTS_V0.version}
 
 
+def score_and_record(conn, tenant: str, cve: str) -> Dict[str, Any]:
+    """One (tenant, cve) scoring transaction: context, gather, pure engine,
+    ledger append, score row. Shared by the HTTP endpoint and the sweep —
+    there is exactly ONE write path for scores."""
+    with conn.cursor() as cur:
+        cur.execute("BEGIN")
+        cur.execute("SELECT set_config('truvo.tenant_id', %s, true)", (tenant,))
+        # tenant must exist (FK + RLS visibility)
+        cur.execute("SELECT 1 FROM tenants WHERE tenant_id = %s", (tenant,))
+        if cur.fetchone() is None:
+            conn.rollback()
+            raise HTTPException(404, "unknown tenant")
+
+        inputs = gather_inputs(cur, cve)
+        result = score(inputs, WEIGHTS_V0)
+        decomp = result.decomposition()
+
+        seq = _ledger_append(cur, tenant, "score.emitted", decomp)
+        cur.execute(
+            "INSERT INTO scores (tenant_id, cve, priority_millis,"
+            " weights_version, ledger_seq) VALUES (%s,%s,%s,%s,%s)",
+            (tenant, cve, result.priority_millis,
+             result.weights_version, seq),
+        )
+        conn.commit()
+    return {"tenant": tenant, "priority_millis": result.priority_millis,
+            "weights_version": result.weights_version, "ledger_seq": seq,
+            "decomposition": decomp}
+
+
 @app.post("/v1/score")
 def do_score(req: ScoreRequest) -> Dict[str, Any]:
     conn = pool().getconn()
     try:
-        with conn.cursor() as cur:
-            cur.execute("BEGIN")
-            cur.execute("SELECT set_config('truvo.tenant_id', %s, true)", (req.tenant,))
-            # tenant must exist (FK + RLS visibility)
-            cur.execute("SELECT 1 FROM tenants WHERE tenant_id = %s", (req.tenant,))
-            if cur.fetchone() is None:
-                conn.rollback()
-                raise HTTPException(404, "unknown tenant")
-
-            inputs = gather_inputs(cur, req.cve)
-            result = score(inputs, WEIGHTS_V0)
-            decomp = result.decomposition()
-
-            seq = _ledger_append(cur, req.tenant, "score.emitted", decomp)
-            cur.execute(
-                "INSERT INTO scores (tenant_id, cve, priority_millis,"
-                " weights_version, ledger_seq) VALUES (%s,%s,%s,%s,%s)",
-                (req.tenant, req.cve, result.priority_millis,
-                 result.weights_version, seq),
-            )
-        conn.commit()
-    except HTTPException:
-        raise
-    except Exception:
-        conn.rollback()
-        raise
+        return score_and_record(conn, req.tenant, req.cve)
     finally:
         pool().putconn(conn)
-    return {"tenant": req.tenant, "priority_millis": result.priority_millis,
-            "weights_version": result.weights_version, "ledger_seq": seq,
-            "decomposition": decomp}
 
 
 @app.get("/v1/{tenant}/priorities")

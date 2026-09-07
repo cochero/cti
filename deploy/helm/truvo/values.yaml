@@ -88,3 +88,17 @@ resources:
   limits:
     cpu: "1"
     memory: 512Mi
+
+# pipeline: the scheduled intelligence heartbeat (CronJob)
+pipeline:
+  enabled: true
+  schedule: "0 */6 * * *"        # every 6 hours; cycles are idempotent
+  feeds: "kev epss attack"
+  image: ghcr.io/cochero/pipeline:latest
+  kafkaBootstrap: truvo-redpanda:9092
+  schemaRegistry: http://truvo-redpanda:8081
+  objstoreEndpoint: truvo-minio:9000
+  llm:
+    enabled: false               # flip on with a served model (SaaS or vLLM)
+    baseUrl: ""
+    model: ""

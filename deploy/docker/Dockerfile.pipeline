@@ -1,0 +1,40 @@
+# Pipeline runner — the scheduled heartbeat in a container.
+#   docker build -f deploy/docker/Dockerfile.pipeline -t ghcr.io/cochero/pipeline:<sha> .
+#
+# Carries the collector, extraction, provenance, and scoring packages so a
+# single container can drive all stages via ops/run_cycle.py (subprocess
+# isolation per stage — same as production). Scheduling is the platform's
+# choice: compose restart loop, k8s CronJob, or plain cron on a VPS.
+FROM python:3.13-slim
+WORKDIR /srv
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY libs/py /srv/libs/py
+RUN pip install --no-cache-dir \
+    /srv/libs/py/truvo_core /srv/libs/py/truvo_events \
+    /srv/libs/py/truvo_objstore /srv/libs/py/truvo_secrets
+
+COPY services/collector /srv/services/collector
+COPY services/extraction /srv/services/extraction
+COPY services/provenance /srv/services/provenance
+COPY services/scoring /srv/services/scoring
+COPY services/eval-harness /srv/services/eval-harness
+RUN pip install --no-cache-dir \
+    /srv/services/collector /srv/services/extraction \
+    /srv/services/provenance /srv/services/scoring \
+    /srv/services/eval-harness
+
+COPY ops/run_cycle.py /srv/ops/run_cycle.py
+# the eval-harness loads the REAL scoring engine by path for replay
+# verification (never a vendored copy)
+ENV TRUVO_ENGINE_PATH=/srv/services/scoring/app/engine.py
+
+RUN useradd --system --no-create-home truvo
+USER truvo
+WORKDIR /srv
+
+# composed env supplies TRUVO_* variables; default cycle every 6h
+ENV TRUVO_CYCLE_SECONDS=21600
+CMD python /srv/ops/run_cycle.py --loop "$TRUVO_CYCLE_SECONDS"

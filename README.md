@@ -38,6 +38,51 @@ Tear down: `docker compose -f deploy/compose/docker-compose.yml down -v`
 
 Target runtime is Python 3.13 (CI); code must stay compatible with 3.9+ during bootstrap.
 
+## Bringing up a working system end to end (dev)
+
+After the data stack is up and migrations applied (`python db/migrate.py "$DB_URL"`):
+
+```bash
+# 1. real intelligence into the pipeline (KEV + EPSS + ATT&CK STIX)
+cd services/collector && PYTHONPATH=. python -m app.run_feeds kev epss attack
+# 2. extract -> gate -> claims; 3. corroboration; 4. scoring read model
+cd ../extraction   && PYTHONPATH=. python -m app.run
+cd ../provenance   && PYTHONPATH=. python -m app.consumer
+cd ../scoring      && PYTHONPATH=. python -m app.enrich
+# 5. demo tenant + users; 6. core + console
+cd ../../core && python manage.py seed_demo && python manage.py runserver 8000
+cd ../web && npm install && npm run dev     # console on :5173/5174
+```
+
+Login: `demo-analyst@truvo.local` / `demo-pass`. Scoring runs per CVE via
+`POST :8020/v1/score` (scoring-svc); rules are generated via detection-factory
+`POST :8030/v1/rules` and reviewed in the console.
+
+## Scheduled intelligence (the heartbeat)
+
+`ops/run_cycle.py` runs the full pipeline as one cycle — collect (KEV/EPSS/ATT&CK)
+→ extract (structured feeds parse directly; text takes the quarantined extractor,
+`TRUVO_EXTRACTOR=llm` for a served OpenAI-compatible model) → corroborate →
+enrich → **sweep** (every active tenant × relevant CVEs re-scored; the queue
+readers take the latest). Failed stages exit non-zero. Deploy as the compose
+`pipeline` service, the Helm CronJob (`pipeline.enabled`), or plain cron.
+
+## The honesty artifact
+
+`services/eval-harness`: `python -m app.report` publishes the calibration &
+platform-integrity report — replay verification (every score re-derived from
+its ledger entry, bit-exact; a failure is a sev-1), score distributions,
+stack coverage, baseline agreement, and outcome calibration that is
+**withheld** until ground truth clears the floor. Reports land in
+`services/eval-harness/reports/`.
+
+## Console (web/)
+
+React analyst console + CISO dashboard (priority queue, score decomposition
+from the ledger, rule review/release, ATT&CK heatmap). Dev: `npm run dev`
+proxies `/api` to the core on :8000. Prod: `deploy/docker/Dockerfile.web`
+behind Caddy. See `web/README.md`.
+
 ```bash
 python -m pip install -e libs/py/truvo_core[dev]
 python -m pytest libs/py/truvo_core
