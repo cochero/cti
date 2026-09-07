@@ -1,0 +1,46 @@
+{
+  "title": "CISA Catalog of Known Exploited Vulnerabilities",
+  "catalogVersion": "2026-07-20T12:34:56.789Z",
+  "count": 3,
+  "vulnerabilities": [
+    {
+      "cveID": "CVE-2021-44228",
+      "vendorProject": "Apache",
+      "product": "Log4j2",
+      "vulnerabilityName": "Apache Log4j2 Remote Code Execution Vulnerability",
+      "dateAdded": "2021-12-10",
+      "shortDescription": "Apache Log4j2 <=2.14.1 JNDI features allow RCE.",
+      "requiredAction": "Apply updates per vendor instructions.",
+      "dueDate": "2021-12-24",
+      "knownRansomwareCampaignUse": "Known",
+      "notes": "",
+      "cwes": ["CWE-502", "CWE-917"]
+    },
+    {
+      "cveID": "CVE-2023-23397",
+      "vendorProject": "Microsoft",
+      "product": "Outlook",
+      "vulnerabilityName": "Microsoft Outlook Elevation of Privilege Vulnerability",
+      "dateAdded": "2023-03-14",
+      "shortDescription": "Microsoft Outlook contains an elevation of privilege vulnerability.",
+      "requiredAction": "Apply updates per vendor instructions.",
+      "dueDate": "2023-03-28",
+      "knownRansomwareCampaignUse": "Known",
+      "notes": "",
+      "cwes": ["CWE-200"]
+    },
+    {
+      "cveID": "CVE-2024-3400",
+      "vendorProject": "Palo Alto Networks",
+      "product": "PAN-OS",
+      "vulnerabilityName": "Palo Alto Networks PAN-OS Command Injection Vulnerability",
+      "dateAdded": "2024-04-12",
+      "shortDescription": "PAN-OS GlobalProtect command injection.",
+      "requiredAction": "Apply updates per vendor instructions.",
+      "dueDate": "2024-04-26",
+      "knownRansomwareCampaignUse": "Known",
+      "notes": "",
+      "cwes": ["CWE-77"]
+    }
+  ]
+}

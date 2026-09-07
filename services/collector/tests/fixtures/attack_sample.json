@@ -1,0 +1,81 @@
+{
+  "type": "bundle",
+  "id": "bundle--test--0000",
+  "spec_version": "2.1",
+  "objects": [
+    {
+      "type": "identity",
+      "spec_version": "2.1",
+      "id": "identity--e1e4b3a2",
+      "name": "The MITRE Corporation"
+    },
+    {
+      "type": "attack-pattern",
+      "spec_version": "2.1",
+      "id": "attack-pattern--b61bac06-2a0a-4f2f-9b1a-1f0d5a4f6f11",
+      "name": "Spearphishing Attachment",
+      "description": "Adversaries may send spearphishing emails with a malicious attachment.",
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "initial-access"},
+        {"kill_chain_name": "mitre-attack", "phase_name": "execution"}
+      ],
+      "external_references": [
+        {"source_name": "mitre-attack", "external_id": "T1566.001", "url": "https://attack.mitre.org/techniques/T1566/001"}
+      ],
+      "x_mitre_detection": "Monitor email gateways for attachments...",
+      "object_marking_refs": ["marking-definition--f88d31f6"],
+      "x_mitre_modified_by_ref": "identity--e1e4b3a2"
+    },
+    {
+      "type": "attack-pattern",
+      "spec_version": "2.1",
+      "id": "attack-pattern--41a2b3c4",
+      "name": "Exploit Public-Facing Application",
+      "description": "Adversaries may attempt to exploit a weakness in an internet-facing host.",
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "initial-access"}
+      ],
+      "external_references": [
+        {"source_name": "mitre-attack", "external_id": "T1190", "url": "https://attack.mitre.org/techniques/T1190"}
+      ],
+      "object_marking_refs": ["marking-definition--f88d31f6"]
+    },
+    {
+      "type": "attack-pattern",
+      "spec_version": "2.1",
+      "id": "attack-pattern--deadbeef",
+      "name": "Old Revoked Technique",
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "initial-access"}
+      ],
+      "external_references": [
+        {"source_name": "mitre-attack", "external_id": "T9999"}
+      ],
+      "revoked": true
+    },
+    {
+      "type": "intrusion-set",
+      "spec_version": "2.1",
+      "id": "intrusion-set--56f1a837",
+      "name": "Lazarus Group",
+      "description": "North Korean state-sponsored cyber threat group.",
+      "aliases": ["HIDDEN COBRA", "APT38", "Diamond Sleet"],
+      "object_marking_refs": ["marking-definition--f88d31f6"]
+    },
+    {
+      "type": "intrusion-set",
+      "spec_version": "2.1",
+      "id": "intrusion-set--deprecated01",
+      "name": "Deprecated Group",
+      "aliases": ["OLD"],
+      "x_mitre_deprecated": true
+    },
+    {
+      "type": "malware",
+      "spec_version": "2.1",
+      "id": "malware--0f8a4b3c",
+      "name": "Some Malware",
+      "is_family": true
+    }
+  ]
+}

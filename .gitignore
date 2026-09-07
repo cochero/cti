@@ -40,3 +40,7 @@ Thumbs.db
 
 # Docker volumes / local data
 deploy/compose/.data/
+
+# Machine-local compose overrides
+deploy/compose/docker-compose.local.yml
+*.tsbuildinfo

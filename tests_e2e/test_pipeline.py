@@ -37,7 +37,10 @@ pytestmark = pytest.mark.skipif(
 )
 
 REPO = Path(__file__).resolve().parents[1]
-APP_URL = "postgresql://truvo_app:truvo-app-dev-only@localhost:5432/truvo"
+APP_URL = os.environ.get(
+    "TRUVO_APP_DB_URL",
+    "postgresql://truvo_app:truvo-app-dev-only@localhost:5432/truvo",
+)
 
 
 def _run(service_dir: str, module: str, extra_env: dict) -> dict:
@@ -50,10 +53,41 @@ def _run(service_dir: str, module: str, extra_env: dict) -> dict:
     env.update(extra_env)
     proc = subprocess.run(
         [sys.executable, "-m", module],
-        cwd=str(svc), env=env, capture_output=True, text=True, timeout=120,
+        # generous for drain batches on a dirty shared-dev backbone; a
+        # clean CI backbone exits in seconds
+        cwd=str(svc), env=env, capture_output=True, text=True, timeout=420,
     )
     assert proc.returncode == 0, "%s failed:\n%s\n%s" % (module, proc.stdout, proc.stderr)
     return json.loads(proc.stdout.strip().splitlines()[-1])
+
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _drain_backbone():
+    """Consume a dirty shared backbone to quiescence before the test.
+
+    On CI the backbone is empty and both loops exit immediately. On a
+    shared dev backbone (prior demo runs), un-drained backlog ahead of
+    this test's own messages makes the single-batch consumers stop on
+    their internal time caps before reaching them. Draining first makes
+    the test's own steps see only its own messages — deterministic on
+    any backbone state. Idempotent by construction: claim/rawdoc ids
+    are content-derived, re-consumption is a no-op.
+    """
+    for service, module, group, count_key in (
+        ("extraction", "app.run", "e2e-drain-extract", "processed"),
+        ("provenance", "app.consumer", "e2e-drain-prov", "ingested"),
+    ):
+        for _ in range(20):  # bounded: 20 x 4000 >> any realistic backlog
+            result = _run(service, module, {
+                "TRUVO_GROUP": group,
+                "TRUVO_BATCH_TIMEOUT": "8",
+                "TRUVO_BATCH_MAX": "4000",
+                **({"TRUVO_PROVENANCE_DB_URL": APP_URL}
+                   if service == "provenance" else {}),
+            })
+            if result[count_key] == 0:
+                break
 
 
 @pytest.fixture()
@@ -79,7 +113,6 @@ def registered_source():
 def test_full_pipeline_collect_extract_corroborate(registered_source):
     sid, admin = registered_source
     cve = "CVE-2026-%d" % (10000 + int(uuid.uuid4().int % 80000))
-    group = "e2e-%s" % uuid.uuid4().hex[:8]
 
     # A document that mentions a real CVE AND tries to inject a command that
     # would (if it worked) set an attacker-chosen CVE to max confidence and
@@ -102,7 +135,10 @@ def test_full_pipeline_collect_extract_corroborate(registered_source):
 
     # 2. extract (schema-gated)
     extracted = _run("extraction", "app.run", {
-        "TRUVO_GROUP": "extract-%s" % group, "TRUVO_BATCH_TIMEOUT": "15",
+        # same FIXED group the drain fixture consumed to quiescence: a
+        # fresh random group would replay the whole retained topic from
+        # earliest and never reach this test's messages on a used backbone
+        "TRUVO_GROUP": "e2e-drain-extract", "TRUVO_BATCH_TIMEOUT": "15",
     })
     assert extracted["processed"] >= 1
     assert extracted["accepted"] >= 2  # the CVE and the actor
@@ -110,7 +146,7 @@ def test_full_pipeline_collect_extract_corroborate(registered_source):
     # 3. corroborate (provenance consumer)
     ingested = _run("provenance", "app.consumer", {
         "TRUVO_PROVENANCE_DB_URL": APP_URL,
-        "TRUVO_GROUP": "prov-%s" % group,
+        "TRUVO_GROUP": "e2e-drain-prov",
     })
     assert ingested["ingested"] >= 2
 

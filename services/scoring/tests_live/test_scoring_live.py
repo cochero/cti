@@ -14,7 +14,10 @@ import uuid
 import pytest
 
 ADMIN_URL = os.environ.get("TRUVO_TEST_DATABASE_URL")
-APP_URL = "postgresql://truvo_app:truvo-app-dev-only@localhost:5432/truvo"
+APP_URL = os.environ.get(
+    "TRUVO_APP_DB_URL",
+    "postgresql://truvo_app:truvo-app-dev-only@localhost:5432/truvo",
+)
 
 pytestmark = pytest.mark.skipif(
     not ADMIN_URL, reason="TRUVO_TEST_DATABASE_URL not set"

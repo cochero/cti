@@ -1,0 +1,12 @@
+{
+  "status": "OK",
+  "timestamp": "2026-07-22T00:00:00.000Z",
+  "search": "",
+  "data": [
+    {"cve": "CVE-2024-3400", "epss": 0.97052, "percentile": 0.99985, "date": "2026-07-21"},
+    {"cve": "CVE-2021-44228", "epss": 0.94127, "percentile": 0.99972, "date": "2026-07-21"},
+    {"cve": "CVE-2023-23397", "epss": 0.17654, "percentile": 0.96211, "date": "2026-07-21"},
+    {"cve": "CVE-2015-0001", "epss": 0.00041, "percentile": 0.10322, "date": "2026-07-21"}
+  ],
+  "total": 4
+}

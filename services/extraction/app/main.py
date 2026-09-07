@@ -96,7 +96,14 @@ class ExtractionPipeline:
         data = store.get(rawdoc["artifact_key"])  # self-verifying
         text = _text_from_artifact(data, rawdoc["content_type"])
 
-        candidates = self._extractor.extract(text)
+        # structured feeds parse directly (exact, deterministic); everything
+        # else — the hostile case — keeps the quarantined text path.
+        extract_document = getattr(self._extractor, "extract_document", None)
+        candidates = None
+        if extract_document is not None:
+            candidates = extract_document(data, rawdoc["content_type"])
+        if candidates is None:
+            candidates = self._extractor.extract(text)
         gated = gate_candidates(candidates)
 
         for cand in gated.accepted:
