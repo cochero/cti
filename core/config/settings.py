@@ -120,7 +120,11 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Security headers — real values even in dev, so prod config is a delta not a rewrite
 SESSION_COOKIE_HTTPONLY = True
-CSRF_COOKIE_HTTPONLY = True
+# csrftoken must be readable by the SPA: it echoes the value in the
+# X-CSRFToken header on authenticated POSTs (the standard Django+SPA
+# double-submit pattern). The token alone carries no authority without the
+# session, so JS readability is by design, not an oversight.
+CSRF_COOKIE_HTTPONLY = False
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
 if not DEBUG:

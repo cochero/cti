@@ -25,6 +25,7 @@ class TenantMeView(RequireMembership, APIView):
                 "tenant_id": request.tenant_id,
                 "role": request.membership.role,
                 "user": request.user.email,
+                "is_staff": request.user.is_staff,
             }
         )
 

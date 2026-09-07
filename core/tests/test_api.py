@@ -47,7 +47,8 @@ def test_tenant_me_reflects_default_membership():
     c = APIClient()
     c.force_login(u)
     body = c.get("/api/v1/tenants/me").json()
-    assert body == {"tenant_id": str(t2), "role": "analyst", "user": "a@example.com"}
+    assert body == {"tenant_id": str(t2), "role": "analyst",
+                    "user": "a@example.com", "is_staff": False}
 
 
 @pytest.mark.django_db
