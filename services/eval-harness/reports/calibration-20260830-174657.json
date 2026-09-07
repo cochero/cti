@@ -1,0 +1,255 @@
+{
+  "report": "truvo-calibration",
+  "version": "1.0",
+  "generated_at": "2026-08-30T17:46:57Z",
+  "weights_version": "weights-v0",
+  "min_outcomes_required": 50,
+  "tenants": [
+    {
+      "slug": "demo",
+      "replay": {
+        "entries": 156,
+        "verified": 156,
+        "failed": 0,
+        "unparseable": 0,
+        "failures": [],
+        "bit_exact_rate_millis": 1000
+      },
+      "distribution": {
+        "scored_cves": 156,
+        "bands_0_to_100": [
+          0,
+          0,
+          0,
+          151,
+          0,
+          0,
+          4,
+          1,
+          0,
+          0
+        ],
+        "top": [
+          [
+            "CVE-2021-44228",
+            762
+          ],
+          [
+            "CVE-2023-22527",
+            667
+          ],
+          [
+            "CVE-2023-46805",
+            667
+          ],
+          [
+            "CVE-2023-49105",
+            620
+          ],
+          [
+            "CVE-2024-21762",
+            620
+          ],
+          [
+            "CVE-2012-0158",
+            367
+          ],
+          [
+            "CVE-2012-1823",
+            367
+          ],
+          [
+            "CVE-2013-2251",
+            367
+          ],
+          [
+            "CVE-2014-0160",
+            367
+          ],
+          [
+            "CVE-2014-0497",
+            367
+          ],
+          [
+            "CVE-2014-6271",
+            367
+          ],
+          [
+            "CVE-2014-7169",
+            367
+          ],
+          [
+            "CVE-2014-8361",
+            367
+          ],
+          [
+            "CVE-2015-1427",
+            367
+          ],
+          [
+            "CVE-2015-1635",
+            367
+          ],
+          [
+            "CVE-2015-3113",
+            367
+          ],
+          [
+            "CVE-2016-6277",
+            367
+          ],
+          [
+            "CVE-2017-0199",
+            367
+          ],
+          [
+            "CVE-2017-10271",
+            367
+          ],
+          [
+            "CVE-2017-11882",
+            367
+          ]
+        ]
+      },
+      "coverage": {
+        "stack_cves_known": 5,
+        "stack_cves_scored": 5,
+        "unscored": []
+      },
+      "baselines": {
+        "epss": 0.4,
+        "cvss": 0.75,
+        "kev_first": 0.4
+      },
+      "calibration": {
+        "n": 0,
+        "withheld": true,
+        "reason": "insufficient ground truth (0 of 50 required) \u2014 adjudicate outcomes to unlock outcome metrics"
+      }
+    },
+    {
+      "slug": "meridian-health-group",
+      "replay": {
+        "entries": 152,
+        "verified": 152,
+        "failed": 0,
+        "unparseable": 0,
+        "failures": [],
+        "bit_exact_rate_millis": 1000
+      },
+      "distribution": {
+        "scored_cves": 152,
+        "bands_0_to_100": [
+          0,
+          0,
+          0,
+          150,
+          0,
+          0,
+          2,
+          0,
+          0,
+          0
+        ],
+        "top": [
+          [
+            "CVE-2021-44228",
+            652
+          ],
+          [
+            "CVE-2023-46805",
+            607
+          ],
+          [
+            "CVE-2012-0158",
+            307
+          ],
+          [
+            "CVE-2012-1823",
+            307
+          ],
+          [
+            "CVE-2013-2251",
+            307
+          ],
+          [
+            "CVE-2014-0160",
+            307
+          ],
+          [
+            "CVE-2014-0497",
+            307
+          ],
+          [
+            "CVE-2014-6271",
+            307
+          ],
+          [
+            "CVE-2014-7169",
+            307
+          ],
+          [
+            "CVE-2014-8361",
+            307
+          ],
+          [
+            "CVE-2015-1427",
+            307
+          ],
+          [
+            "CVE-2015-1635",
+            307
+          ],
+          [
+            "CVE-2015-3113",
+            307
+          ],
+          [
+            "CVE-2016-6277",
+            307
+          ],
+          [
+            "CVE-2017-0199",
+            307
+          ],
+          [
+            "CVE-2017-10271",
+            307
+          ],
+          [
+            "CVE-2017-11882",
+            307
+          ],
+          [
+            "CVE-2017-12617",
+            307
+          ],
+          [
+            "CVE-2017-5638",
+            307
+          ],
+          [
+            "CVE-2017-7269",
+            307
+          ]
+        ]
+      },
+      "coverage": {
+        "stack_cves_known": 2,
+        "stack_cves_scored": 2,
+        "unscored": []
+      },
+      "baselines": {
+        "epss": 0.5,
+        "cvss": 0.9,
+        "kev_first": 0.5
+      },
+      "calibration": {
+        "n": 0,
+        "withheld": true,
+        "reason": "insufficient ground truth (0 of 50 required) \u2014 adjudicate outcomes to unlock outcome metrics"
+      }
+    }
+  ]
+}
