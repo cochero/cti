@@ -1,7 +1,7 @@
 # Django core image (tenancy, RBAC, SSO, MIS API). Distinct from the FastAPI
 # services because Django has its own entrypoint + migrations.
 #   docker build -f deploy/docker/Dockerfile.core -t ghcr.io/cochero/core:<sha> .
-FROM python:3.13-slim
+FROM python:3.14-slim
 WORKDIR /srv
 
 COPY libs/py /srv/libs/py
