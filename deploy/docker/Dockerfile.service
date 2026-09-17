@@ -6,7 +6,7 @@
 # Every service follows the same shape (services/<name> with a pyproject that
 # depends on the local truvo-* libs), so one Dockerfile builds them all —
 # internal names always resolve from the repo, never PyPI (T6 guard).
-FROM python:3.13-slim
+FROM python:3.14-slim
 ARG SERVICE
 WORKDIR /srv
 

@@ -5,7 +5,7 @@
 # single container can drive all stages via ops/run_cycle.py (subprocess
 # isolation per stage — same as production). Scheduling is the platform's
 # choice: compose restart loop, k8s CronJob, or plain cron on a VPS.
-FROM python:3.13-slim
+FROM python:3.14-slim
 WORKDIR /srv
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
