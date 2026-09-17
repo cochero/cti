@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with: {python-version: "3.13"}
       # Pin ruff: an unpinned linter turns every ruff release into a
       # potential red build (0.16 added UP031 and broke a green commit).
@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with: {python-version: "3.13"}
       - name: Install packages under test
         # Local libs FIRST so internal names (truvo-*) resolve from the
@@ -71,7 +71,7 @@ jobs:
       TRUVO_VAULT_TOKEN: truvo-dev-root
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with: {python-version: "3.13"}
       - name: Start OpenBao (dev mode)
         run: |
@@ -170,7 +170,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with: {python-version: "3.13"}
       - name: Start Redpanda
         run: |
@@ -213,7 +213,7 @@ jobs:
       TRUVO_OBJSTORE_ENDPOINT: localhost:9000
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with: {python-version: "3.13"}
       - name: Start Redpanda + MinIO
         run: |
@@ -260,7 +260,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with: {python-version: "3.13"}
       - name: pip-audit across all service lockfiles
         run: |
