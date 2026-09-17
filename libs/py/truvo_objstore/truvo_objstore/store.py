@@ -68,3 +68,19 @@ class ObjectStore:
                 "object %s failed content verification" % key
             )
         return data
+
+    def delete(self, key: str) -> None:
+        """Delete one object (retention/GC path — see ops/retention.py).
+        Content-addressing means the evidence pointer in claims remains
+        truthful about what WAS there; deletion is the retention policy
+        executing, never a silent loss."""
+        self._client.remove_object(self.bucket, key)
+
+    def iter_objects(self, older_than_days: int = 0):
+        """Yield (key, last_modified) for objects older than the given
+        days. Retention GC drives this; 0 days = everything."""
+        from datetime import datetime, timedelta, timezone
+        cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+        for obj in self._client.list_objects(self.bucket, recursive=True):
+            if obj.last_modified.replace(tzinfo=timezone.utc) < cutoff:
+                yield obj.object_name, obj.last_modified

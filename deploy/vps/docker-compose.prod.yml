@@ -15,7 +15,7 @@ x-svc-common: &svc-common
     redpanda: {condition: service_healthy}
     minio: {condition: service_healthy}
     migrate: {condition: service_completed_successfully}
-  networks: [truvo]
+  networks: [backend]
 
 x-svc-env: &svc-env
   TRUVO_VAULT_ADDR: "http://openbao:8200"
@@ -49,7 +49,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 15
-    networks: [truvo]
+    networks: [backend]
 
   redpanda:
     image: redpandadata/redpanda:latest
@@ -69,7 +69,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 15
-    networks: [truvo]
+    networks: [backend]
 
   minio:
     image: minio/minio:latest
@@ -84,7 +84,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 15
-    networks: [truvo]
+    networks: [backend]
 
   openbao:
     image: quay.io/openbao/openbao:latest
@@ -96,7 +96,7 @@ services:
     volumes:
       - bao_data:/openbao/data
       - ./openbao.hcl:/openbao/config/config.hcl:ro
-    networks: [truvo]
+    networks: [backend]
 
   # ---------- SQL migrations (runs once, before services) ----------
   migrate:
@@ -108,7 +108,7 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
     restart: on-failure
-    networks: [truvo]
+    networks: [backend]
 
   ledger:
     <<: [*svc-common, *svc-health]
@@ -224,7 +224,7 @@ services:
       TRUVO_SECRET_KEY: "${DJANGO_SECRET_KEY}"
       TRUVO_DEBUG: "0"
       TRUVO_ALLOWED_HOSTS: "${TRUVO_DOMAIN},core,localhost"
-    networks: [truvo]
+    networks: [backend]
 
   # ---------- console: static SPA served by nginx (Caddy routes /api to core) ----------
   web:
@@ -232,9 +232,12 @@ services:
       context: ../..
       dockerfile: deploy/docker/Dockerfile.web
     restart: unless-stopped
-    networks: [truvo]
+    networks: [backend]
 
-  # ---------- pipeline runner: the scheduled heartbeat (collect->...->sweep) ----------
+  # ---------- pipeline: INTERNAL stages (extract->corroborate->enrich->sweep->report) ----------
+  # On the internal network ONLY: no internet route exists from here. A
+  # hosted LLM is reachable exclusively through llm-egress (security
+  # review C1 — the no-egress extraction sandbox, enforced).
   pipeline:
     build:
       context: ../..
@@ -251,7 +254,43 @@ services:
       TRUVO_APP_DB_URL: "${TRUVO_APP_DB_URL}"  # provisioned by bootstrap.sh
       TRUVO_PROVENANCE_URL: http://provenance:8000
       TRUVO_CYCLE_SECONDS: "${TRUVO_CYCLE_SECONDS:-21600}"
-    networks: [truvo]
+      TRUVO_ALERT_WEBHOOK: "${TRUVO_ALERT_WEBHOOK:-}"
+      # hosted-LLM mode: point at the egress proxy, NOT the provider
+      TRUVO_EXTRACTOR: "${TRUVO_EXTRACTOR:-fake}"
+      TRUVO_LLM_BASE_URL: "http://llm-egress/api/paas/v4"
+      TRUVO_LLM_MODEL: "${TRUVO_LLM_MODEL:-}"
+      TRUVO_LLM_API_KEY: "${TRUVO_LLM_API_KEY:-}"
+      TRUVO_LLM_THINKING: disabled
+    command: ["python", "/srv/ops/run_cycle.py", "--loop", "${TRUVO_CYCLE_SECONDS:-21600}", "--stages", "app.run,app.consumer,app.enrich,app.sweep,app.report"]
+    networks: [backend]
+
+  # ---------- pipeline: COLLECT stage only (the one stage needing internet) ----------
+  pipeline-collect:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.pipeline
+    restart: unless-stopped
+    depends_on:
+      redpanda: {condition: service_healthy}
+      minio: {condition: service_healthy}
+    environment:
+      TRUVO_KAFKA_BOOTSTRAP: redpanda:9092
+      TRUVO_SCHEMA_REGISTRY: http://redpanda:8081
+      TRUVO_OBJSTORE_ENDPOINT: minio:9000
+      TRUVO_PROVENANCE_URL: http://provenance:8000
+      TRUVO_ALERT_WEBHOOK: "${TRUVO_ALERT_WEBHOOK:-}"
+    command: ["python", "/srv/ops/run_cycle.py", "--loop", "${TRUVO_CYCLE_SECONDS:-21600}", "--stages", "app.run_feeds"]
+    networks: [backend, edge]
+
+  # ---------- llm-egress: the extraction zone's single door to the provider ----
+  llm-egress:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - ../docker/llm-egress.nginx.conf:/etc/nginx/templates/default.conf.template:ro
+    environment:
+      LLM_UPSTREAM_HOST: "${TRUVO_LLM_UPSTREAM_HOST:-api.z.ai}"
+    networks: [backend, edge]
 
   # ---------- Caddy: TLS termination + reverse proxy (only exposed ports) ----------
   caddy:
@@ -267,10 +306,15 @@ services:
     environment:
       TRUVO_DOMAIN: "${TRUVO_DOMAIN}"
     depends_on: [core, web]
-    networks: [truvo]
+    networks: [backend, edge]
 
 networks:
-  truvo:
+  # trust zones (security review C1/H2): edge has internet, backend is
+  # internal-only; containers needing both are multi-homed explicitly
+  backend:
+    driver: bridge
+    internal: true
+  edge:
     driver: bridge
 
 volumes:

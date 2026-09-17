@@ -290,3 +290,38 @@ def test_login_response_sets_csrf_cookie():
                 HTTP_X_CSRFTOKEN=token)
     assert r2.status_code == 200
     assert r2.json()["status"] == "active"
+
+
+@pytest.mark.django_db
+def test_account_lockout_after_failures():
+    """H1: five failures lock the account; the response is identical to a
+    bad password (attacker learns nothing); a correct password is also
+    refused while locked; clearing happens on nothing but success."""
+    u = User.objects.create_user(username="lk", email="lock@example.com",
+                                 password="right-password-1")
+    tid = make_tenant("mislk2-%s" % uuid.uuid4().hex[:8])
+    Membership.objects.create(user=u, tenant_id=tid, role="viewer",
+                              is_default=True)
+    c = APIClient()
+    # distinct source IPs so the per-IP throttle stays out of the way and
+    # the ACCOUNT lockout layer is what's under test
+    for i in range(5):
+        r = c.post("/api/v1/auth/login",
+                   {"email": "lock@example.com", "password": "wrong"},
+                   format="json", extra={"REMOTE_ADDR": "10.9.0.%d" % i})
+        assert r.status_code == 401
+    # locked now — even the CORRECT password is refused
+    r = c.post("/api/v1/auth/login",
+               {"email": "lock@example.com", "password": "right-password-1"},
+               format="json", extra={"REMOTE_ADDR": "10.9.1.1"})
+    assert r.status_code == 401
+    assert r.json() == {"detail": "invalid credentials"}
+    # another account is unaffected
+    u2 = User.objects.create_user(username="ok", email="ok@example.com",
+                                  password="fine-password-1")
+    Membership.objects.create(user=u2, tenant_id=tid, role="viewer",
+                              is_default=True)
+    assert c.post("/api/v1/auth/login",
+                  {"email": "ok@example.com", "password": "fine-password-1"},
+                  format="json",
+                  extra={"REMOTE_ADDR": "10.9.2.1"}).status_code == 200

@@ -21,3 +21,14 @@ def django_db_setup(django_db_setup, django_db_blocker):
 
     with django_db_blocker.unblock():
         run_sql_migrations(dsn)
+
+
+@pytest.fixture(autouse=True)
+def _clear_throttle_cache():
+    """DRF throttles key into the (shared, in-process) cache; without this,
+    later auth tests inherit earlier tests' request counts and fail on
+    429s that have nothing to do with the code under test."""
+    from django.core.cache import cache
+    cache.clear()
+    yield
+    cache.clear()

@@ -124,15 +124,19 @@ class LLMExtractor:
             return []  # unparseable -> zero candidates; gate never sees garbage
         if not isinstance(parsed, list):
             return []
-        # formatting normalization only: 'MITRE T1566.001' -> 'T1566.001'.
-        # The gate still validates every field after this.
+        # formatting normalization + existence filter (security review M1):
+        # 'MITRE T1566.001' -> 'T1566.001', then drop ids that are not in
+        # the real ATT&CK corpus — format-valid fabrications (T9999) must
+        # not reach the heatmap. The gate still validates every field.
+        from app.techniques import filter_known_techniques
         for cand in parsed:
             if isinstance(cand, dict) and isinstance(
                     cand.get("attack_technique_ids"), list):
-                cand["attack_technique_ids"] = [
+                normalized = [
                     tid.split()[-1] if isinstance(tid, str)
                     and tid.upper().startswith("MITRE ") else tid
                     for tid in cand["attack_technique_ids"]]
+                cand["attack_technique_ids"], _dropped =                     filter_known_techniques(normalized)
         return parsed
 
 

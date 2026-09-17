@@ -11,12 +11,14 @@ Rule generation stays in detection-factory (a service API, indicator
 input required); this surface governs REVIEW and RELEASE — the human gate.
 """
 
+import hashlib
 import json
 import uuid
 
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from truvo_core.hashchain import LedgerEntry, append_entry
 
@@ -298,19 +300,54 @@ class LoginView(APIView):
     """Session login for the SPA. In SSO deployments OIDC sits in front
     (mozilla_django_oidc) and this endpoint is simply unused — it exists
     so the console works in dev, self-hosted, and air-gap profiles where
-    an IdP may not be reachable. Rate limiting arrives with the gateway."""
+    an IdP may not be reachable.
+
+    Brute-force defense (security review H1), layered:
+      1. scoped DRF throttle 'auth' (per-IP request rate)
+      2. per-ACCOUNT lockout: LOCKOUT_MAX_FAILURES inside LOCKOUT_SECONDS
+      3. every failure recorded (email + hashed IP) — the observability
+         stack reads the same rows for spike alerting
+    Lockout returns the same error as bad credentials: an attacker must
+    not learn which defense stopped them."""
 
     authentication_classes = []  # the request IS the credentials
     permission_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
     def post(self, request):
+        import json as _json
+        import logging
+
+        from django.conf import settings as dj_settings
         from django.contrib.auth import authenticate, login
+
+        logger = logging.getLogger("truvo.security.auth")
         email = (request.data.get("email") or "").strip()
         password = request.data.get("password") or ""
-        user = authenticate(request, username=email, password=password)
-        if user is None:
+        ip = request.META.get("REMOTE_ADDR", "")[:64]
+
+        from accounts.models import LoginFailure
+        LoginFailure.prune()
+        if LoginFailure.locked_out(email, dj_settings.LOCKOUT_MAX_FAILURES,
+                                   dj_settings.LOCKOUT_SECONDS):
+            # structured signal for the alert stack; generic body for the client
+            logger.warning(_json.dumps({
+                "event": "auth.lockout", "email": email.lower(),
+                "ip_hash": hashlib.sha256(
+                    ip.encode()).hexdigest()[:16]}))
             return Response({"detail": "invalid credentials"},
                             status=status.HTTP_401_UNAUTHORIZED)
+
+        user = authenticate(request, username=email, password=password)
+        if user is None:
+            LoginFailure.record(email, ip)
+            logger.warning(_json.dumps({
+                "event": "auth.failure", "email": email.lower()}))
+            return Response({"detail": "invalid credentials"},
+                            status=status.HTTP_401_UNAUTHORIZED)
+
+        LoginFailure.clear(email)
         login(request, user)  # rotates the session AND the csrf token
         membership = (user.memberships.filter(is_default=True).first()
                       or user.memberships.first())

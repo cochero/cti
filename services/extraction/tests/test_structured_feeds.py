@@ -179,3 +179,24 @@ class TestLLMFencedJSON:
     def test_garbage_still_yields_zero(self):
         from app.extractors import LLMExtractor
         assert LLMExtractor(invoke=lambda s, u: "I cannot answer").extract("t") == []
+
+
+class TestTechniqueAllowList:
+    def test_fabricated_technique_ids_dropped(self):
+        from app.extractors import LLMExtractor
+        out = '[{"subject_type": "TTP", "subject_value": "T1566.001", ' \
+              '"assertion": "m", "object_value": null, ' \
+              '"extraction_confidence_millis": 900, ' \
+              '"attack_technique_ids": ["T1566.001", "T9999", "T0000"]}]'
+        llm = LLMExtractor(invoke=lambda s, u: out)
+        cands = llm.extract("doc")
+        assert cands[0]["attack_technique_ids"] == ["T1566.001"]
+
+    def test_mitre_prefix_normalized_then_filtered(self):
+        from app.extractors import LLMExtractor
+        out = '[{"subject_type": "TTP", "subject_value": "T1190", ' \
+              '"assertion": "m", "object_value": null, ' \
+              '"extraction_confidence_millis": 900, ' \
+              '"attack_technique_ids": ["MITRE T1190"]}]'
+        cands = LLMExtractor(invoke=lambda s, u: out).extract("doc")
+        assert cands[0]["attack_technique_ids"] == ["T1190"]

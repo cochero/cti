@@ -13,6 +13,9 @@ Env:
     TRUVO_LLM_API_KEY   bearer token                    (optional for local vLLM)
     TRUVO_LLM_MODEL     model name                      (required)
     TRUVO_LLM_TIMEOUT   seconds, default 120
+    TRUVO_LLM_MAX_TOKENS      request cap, default 4096 (C2)
+    TRUVO_LLM_MAX_RESP_BYTES  hard parse cap, default 524288 (C2)
+    TRUVO_LLM_BUDGET_TOKENS   cumulative budget; 0 = unlimited (C2)
     TRUVO_LLM_JSON_MODE "1" to request JSON response format where supported
     TRUVO_LLM_THINKING  "disabled" to turn off reasoning modes (GLM-4.5+):
                         extraction is bounded JSON work — thinking adds
@@ -29,9 +32,20 @@ from typing import Optional
 
 import requests
 
-__all__ = ["OpenAICompatibleInvoke", "adapter_from_env"]
+__all__ = ["OpenAICompatibleInvoke", "adapter_from_env",
+           "ResponseTooLarge", "BudgetExceeded"]
 
 _RETRYABLE = {429, 500, 502, 503, 504}
+
+
+class ResponseTooLarge(RuntimeError):
+    """A provider returned more bytes than the configured cap — treated as
+    hostile/misbehaving, never parsed (security review C2)."""
+
+
+class BudgetExceeded(RuntimeError):
+    """Cumulative token spend crossed the configured budget — the caller
+    (pipeline cycle) treats this as an abort + alert, not a silent skip."""
 
 
 class OpenAICompatibleInvoke:
@@ -40,14 +54,24 @@ class OpenAICompatibleInvoke:
     def __init__(self, base_url: str, api_key: Optional[str] = None,
                  model: str = "", timeout: float = 120.0,
                  json_mode: bool = False, thinking: Optional[str] = None,
-                 session=None):
+                 max_tokens: int = 4096, max_response_bytes: int = 512 * 1024,
+                 budget_tokens: int = 0, session=None):
         self._base = base_url.rstrip("/")
         self._api_key = api_key
         self._model = model
         self._timeout = timeout
         self._json_mode = json_mode
         self._thinking = thinking
+        self._max_tokens = max_tokens
+        self._max_response_bytes = max_response_bytes
+        self._budget_tokens = budget_tokens
+        self._budget_spent = 0
         self._session = session or requests.Session()
+
+    @property
+    def budget_spent(self) -> int:
+        """Tokens consumed so far — the cycle reports this for alerting."""
+        return self._budget_spent
 
     def __call__(self, system: str, user: str) -> str:
         return self.invoke(system, user)
@@ -59,6 +83,7 @@ class OpenAICompatibleInvoke:
         body = {
             "model": self._model,
             "temperature": 0,
+            "max_tokens": self._max_tokens,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -83,7 +108,19 @@ class OpenAICompatibleInvoke:
                     continue
                 raise
             if resp.status_code == 200:
+                # hostile-provider guard (security review C2): never parse
+                # more than MAX_RESPONSE_BYTES regardless of what arrives
+                if len(resp.content) > self._max_response_bytes:
+                    raise ResponseTooLarge(
+                        "LLM response %d bytes > cap %d — refusing to parse"
+                        % (len(resp.content), self._max_response_bytes))
                 payload = resp.json()
+                usage = payload.get("usage", {}).get("total_tokens") or 0
+                self._budget_spent += usage
+                if self._budget_tokens and self._budget_spent > self._budget_tokens:
+                    raise BudgetExceeded(
+                        "LLM token budget exceeded: %d > %d"
+                        % (self._budget_spent, self._budget_tokens))
                 return payload["choices"][0]["message"]["content"]
             if resp.status_code in _RETRYABLE and attempt == 1:
                 time.sleep(1.5)
@@ -107,4 +144,8 @@ def adapter_from_env() -> OpenAICompatibleInvoke:
         timeout=float(os.environ.get("TRUVO_LLM_TIMEOUT", "120")),
         json_mode=os.environ.get("TRUVO_LLM_JSON_MODE", "") == "1",
         thinking=os.environ.get("TRUVO_LLM_THINKING") or None,
+        max_tokens=int(os.environ.get("TRUVO_LLM_MAX_TOKENS", "4096")),
+        max_response_bytes=int(os.environ.get("TRUVO_LLM_MAX_RESP_BYTES",
+                                              str(512 * 1024))),
+        budget_tokens=int(os.environ.get("TRUVO_LLM_BUDGET_TOKENS", "0")),
     )

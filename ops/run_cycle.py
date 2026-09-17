@@ -33,6 +33,9 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from alerts import alert, check_cycle_anomalies  # noqa: E402
+
 REPO = Path(__file__).resolve().parents[1]
 
 # optional machine-local config (gitignored): LLM keys etc. Loaded BEFORE
@@ -55,11 +58,13 @@ STAGES = [
     # the honesty artifact: regenerate the calibration report each cycle
     # (cheap; withheld sections stay withheld until ground truth exists)
     ("eval-harness", "app.report", lambda a: {}),
+    # the DPA's promises, executing (retention GC + credential purge)
+    ("retention", "ops.retention", lambda a: {}),
 ]
 
 
 def run_stage(service_dir: str, module: str, extra: dict) -> dict:
-    svc = REPO / "services" / service_dir
+    svc = REPO if service_dir == "retention" else REPO / "services" / service_dir
     env = dict(os.environ)
     env["PYTHONPATH"] = str(svc)
     env.setdefault("TRUVO_KAFKA_BOOTSTRAP", "localhost:9092")
@@ -92,10 +97,13 @@ def run_stage(service_dir: str, module: str, extra: dict) -> dict:
     return out
 
 
-def cycle(feeds: str) -> dict:
+def cycle(feeds: str, stages_filter: str = "") -> dict:
     results = {}
     failed = []
+    wanted = {s.strip() for s in stages_filter.split(",") if s.strip()}
     for service_dir, module, extra_fn in STAGES:
+        if wanted and module not in wanted:
+            continue
         extra = extra_fn(feeds)
         res = run_stage(service_dir, module, extra)
         # summarize: stage output stays log-sized (rawdoc id lists are
@@ -118,11 +126,15 @@ def main() -> int:
                     help="space-separated feed list for the collect stage")
     ap.add_argument("--loop", type=int, default=0, metavar="SECONDS",
                     help="run continuously, one cycle per interval")
+    ap.add_argument("--stages", default="",
+                    help="comma list of stage modules to run (e.g. "
+                         "'app.run_feeds' for a collect-only container); "
+                         "empty = all")
     args = ap.parse_args()
 
     while True:
         started = time.time()
-        results = cycle(args.feeds)
+        results = cycle(args.feeds, args.stages)
         failed = results.pop("_failed", [])
         print(json.dumps({
             "cycle_started": time.strftime("%Y-%m-%dT%H:%M:%SZ",
@@ -131,6 +143,11 @@ def main() -> int:
             "failed": failed,
             "stages": results,
         }), flush=True)
+        if failed:
+            alert("pipeline.cycle_failed", "critical",
+                  failed_stages=failed, duration_s=round(time.time() - started, 1))
+        else:
+            check_cycle_anomalies(results)
         if not args.loop:
             return 1 if failed else 0
         # in loop mode a failed cycle logs and retries next interval

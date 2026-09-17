@@ -1,0 +1,22 @@
+# Dependency updates (security review H6): weekly cadence, grouped PRs
+# per ecosystem so patch noise stays low.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/libs/py/truvo_core"
+    schedule: {interval: weekly}
+  - package-ecosystem: pip
+    directory: "/services/extraction"
+    schedule: {interval: weekly}
+  - package-ecosystem: pip
+    directory: "/services/scoring"
+    schedule: {interval: weekly}
+  - package-ecosystem: npm
+    directory: "/web"
+    schedule: {interval: weekly}
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule: {interval: weekly}
+  - package-ecosystem: docker
+    directory: "/deploy/docker"
+    schedule: {interval: weekly}
