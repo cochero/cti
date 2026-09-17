@@ -16,7 +16,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with: {python-version: "3.13"}
       # Pin ruff: an unpinned linter turns every ruff release into a
@@ -28,7 +28,7 @@ jobs:
   test-python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with: {python-version: "3.13"}
       - name: Install packages under test
@@ -70,7 +70,7 @@ jobs:
       TRUVO_VAULT_ADDR: http://localhost:8200
       TRUVO_VAULT_TOKEN: truvo-dev-root
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with: {python-version: "3.13"}
       - name: Start OpenBao (dev mode)
@@ -169,7 +169,7 @@ jobs:
     # S1-S2 exit: registry-validated event round-trips through the backbone.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with: {python-version: "3.13"}
       - name: Start Redpanda
@@ -212,7 +212,7 @@ jobs:
       TRUVO_SCHEMA_REGISTRY: http://localhost:18081
       TRUVO_OBJSTORE_ENDPOINT: localhost:9000
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with: {python-version: "3.13"}
       - name: Start Redpanda + MinIO
@@ -248,7 +248,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint, test-python, leak-tests, event-roundtrip, pipeline-e2e]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build ledger image
         run: docker build -f services/ledger/Dockerfile -t truvo/ledger:${{ github.sha }} .
       # TODO(S0-exit): push to registry + cosign sign + CycloneDX SBOM attest.
@@ -259,7 +259,7 @@ jobs:
     # ship. Runs on every push to main and weekly.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with: {python-version: "3.13"}
       - name: pip-audit across all service lockfiles
